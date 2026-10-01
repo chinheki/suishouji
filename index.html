@@ -8,7 +8,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=24">
+  <link rel="stylesheet" href="./style.css?v=25">
   <title>随手记</title>
 </head>
 <body>
@@ -70,24 +70,10 @@
       <div class="dialog-heading"><h2 id="dialog-title">添加标签</h2><button type="button" id="close-dialog" class="close" aria-label="关闭">×</button></div>
       <label for="tag-name">标签名称</label>
       <input id="tag-name" name="name" maxlength="24" placeholder="例如：喝了咖啡" autocomplete="off" required>
-      <fieldset id="cycle-fieldset" class="cycle-fieldset">
-        <label class="cycle-toggle"><span>实验周期 <small>可选</small></span><input type="checkbox" id="cycle-enabled" aria-label="启用实验周期"></label>
-        <div id="cycle-controls" hidden>
-          <div id="cycle-slider" class="cycle-slider" role="radiogroup" aria-label="实验周期">
-            <span class="cycle-thumb" aria-hidden="true"></span>
-            <label><input type="radio" name="cycle" value="daily" checked><span>每日</span></label>
-            <label><input type="radio" name="cycle" value="weekly"><span>每周</span></label>
-            <label><input type="radio" name="cycle" value="monthly"><span>每月</span></label>
-            <label><input type="radio" name="cycle" value="custom"><span>自定义</span></label>
-          </div>
-          <label id="custom-days-wrap" class="custom-days-wrap" hidden>周期天数<input id="custom-days" type="number" inputmode="numeric" min="1" max="36500" step="1" placeholder="例如：3"></label>
-          <p id="cycle-hint" class="cycle-hint">距上次记录满 1 天后可再记（1 天 = 24 小时）。</p>
-        </div>
-      </fieldset>
       <p id="form-error" class="form-error" role="alert"></p>
       <button id="add-submit" class="submit" type="submit" disabled>添加标签</button>
     </form>
   </dialog>
-  <script type="module" src="./app.js?v=24"></script>
+  <script type="module" src="./app.js?v=25"></script>
 </body>
 </html>

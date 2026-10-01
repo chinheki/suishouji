@@ -209,3 +209,11 @@ IndexedDB 数据库 `suishouji`：`tags` 保存标签，`events` 保存每次事
 公开仓库：https://github.com/chinheki/suishouji 。站点：https://chinheki.github.io/suishouji/ 。Actions：https://github.com/chinheki/suishouji/actions 。已授权并完成首次源码推送，通过 Actions 构建并发布；浏览器已确认正式 HTTPS 地址能载入首页与默认标签。
 
 真实记录依旧只在浏览器 IndexedDB 中；localhost 与 GitHub Pages 是不同来源，不会自动搬迁本地记录。公开的 demo-data.js 仅含虚构模拟数据。后续推送 main 自动执行统计测试及部署。本次未做真实设备安装验证。
+
+## 标签取消周期限制（2026-10-01）
+
+新增/编辑标签只填写名称，移除标签周期控件及设置列表中的周期提示；周期仅由统计设置控制。记录写入不再检查旧 cycleDays 或 timestampEnabled：所有有效标签均可多次记录，包括历史设置每日/每周/月/自定义周期的标签。不同事件 ID 的同时提交均保留，同一事件 ID 仍由主键防重复。归档/不存在标签仍禁止记录。
+
+历史字段和事件快照保留，不迁移或删除已有数据；新事件 cycleDays 为 null。撤销仍只删除最后一次记录。更新 tests/cycles.html 为新规则兼容验证，旧周期边界不再构成拦截条件。
+
+验证：浏览器记录测试 11 项通过（旧周期、并发、撤销重记、归档及相同事件 ID），统计测试通过；浏览器确认新增界面仅有名称。未做真机或本次离线安装验证。缓存 v25，发布包更新。

@@ -1,6 +1,6 @@
-import { periodStart, shiftPeriod } from './scatter.js?v=24';
-import { renderScatter } from './scatter-ui.js?v=24';
-import { openDatabase, recordOnce, normalizeName, validCycleDays } from './storage.js?v=8';
+import { periodStart, shiftPeriod } from './scatter.js?v=25';
+import { renderScatter } from './scatter-ui.js?v=25';
+import { openDatabase, recordOnce, normalizeName } from './storage.js?v=25';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -56,11 +56,7 @@ function openTagDialog(group, tag = null) {
   $('add-submit').textContent = tag ? '保存修改' : '添加标签';
   $('tag-name').value = tag?.name || ''; $('form-error').textContent = '';
   $('tag-name').placeholder = group === 'conditions' ? '例如：喝了茶' : '例如：心情很好';
-  $('cycle-enabled').checked = Boolean(tag?.cycleDays);
-  const choice = tag?.cycleChoice || ({ 1: 'daily', 7: 'weekly', 30: 'monthly' }[tag?.cycleDays] || (tag?.cycleDays ? 'custom' : 'daily'));
-  document.querySelector(`[name=cycle][value=${choice}]`).checked = true;
-  $('custom-days').value = choice === 'custom' ? tag.cycleDays : '';
-  updateCycleUI(); $('add-submit').disabled = true;
+  $('add-submit').disabled = true;
   dialog.showModal(); $('tag-name').focus(); void validateTagForm();
 }
 
@@ -79,14 +75,7 @@ async function recordEvent(tag, button) {
   try {
     const outcome = await recordOnce(db, event);
     if (outcome.status !== 'saved') {
-      if (outcome.status === 'blocked') {
-        const next = new Date(outcome.nextAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
-        $('toast-text').textContent = `本周期已记录 · ${next} 后可再记`;
-        $('undo').hidden = !lastEvent || lastEvent.id !== outcome.previous.id;
-        $('toast').hidden = false;
-        clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6500);
-        clearError();
-      } else showError(outcome.status === 'unavailable' ? '这个标签已删除，请刷新首页。' : '这个标签的实验周期无效。');
+      showError('这个标签已删除，请刷新首页。');
       return;
     }
     clearError(); lastEvent = event;
@@ -120,21 +109,6 @@ $('undo').addEventListener('click', async () => {
 $('close-dialog').addEventListener('click', () => dialog.close());
 let formRevision = 0;
 let formSaving = false;
-function cycleDaysFromForm() {
-  if (!$('cycle-enabled').checked) return null;
-  const choice = document.querySelector('[name=cycle]:checked').value;
-  return { daily: 1, weekly: 7, monthly: 30 }[choice] ?? Number($('custom-days').value);
-}
-function updateCycleUI() {
-  const options = ['daily', 'weekly', 'monthly', 'custom'];
-  const choice = document.querySelector('[name=cycle]:checked').value;
-  $('cycle-slider').style.setProperty('--selected', options.indexOf(choice));
-  $('cycle-controls').hidden = !$('cycle-enabled').checked;
-  $('custom-days-wrap').hidden = choice !== 'custom';
-  $('custom-days').disabled = !$('cycle-enabled').checked || choice !== 'custom';
-  const days = cycleDaysFromForm();
-  $('cycle-hint').textContent = editingTag?.timestampEnabled && validCycleDays(days) ? `每 ${days} 天为一个统计周期，周期内可记录多次。` : validCycleDays(days) ? `距上次记录满 ${days} 天后可再记（1 天 = 24 小时）。` : '请输入 1–36500 的整数天数。';
-}
 async function validateTagForm() {
   const revision = ++formRevision;
   $('add-submit').disabled = true;
@@ -148,28 +122,19 @@ async function validateTagForm() {
       $('form-error').textContent = existing.archived ? '这个标签已存在，可在设置中恢复。' : '这一组已经有这个标签了。';
       return false;
     }
-    const days = cycleDaysFromForm();
-    if (days !== null && !validCycleDays(days)) {
-      $('form-error').textContent = '自定义周期请输入 1–36500 的整数天数。'; return false;
-    }
     $('add-submit').disabled = false; return true;
   } catch { if (revision === formRevision) $('form-error').textContent = '暂时无法检查名称，请重新输入后重试。'; return false; }
 }
 $('tag-name').addEventListener('input', () => void validateTagForm());
-$('cycle-enabled').addEventListener('change', () => { updateCycleUI(); void validateTagForm(); });
-document.querySelectorAll('[name=cycle]').forEach((radio) => radio.addEventListener('change', () => { updateCycleUI(); void validateTagForm(); }));
-$('custom-days').addEventListener('input', () => { updateCycleUI(); void validateTagForm(); });
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (formSaving || !await validateTagForm()) return;
   const name = normalizeName($('tag-name').value);
-  const cycleDays = cycleDaysFromForm();
   formSaving = true; $('add-submit').disabled = true;
   try {
     const updated = {
       ...(editingTag || { id: crypto.randomUUID(), group: activeGroup, order: Date.now(), createdAt: new Date().toISOString() }),
-      name, cycleDays, timestampEnabled: Boolean(editingTag?.timestampEnabled),
-      cycleChoice: document.querySelector('[name=cycle]:checked').value,
+      name,
       updatedAt: new Date().toISOString(),
     };
     await transaction('tags', 'readwrite', (store) => editingTag ? store.put(updated) : store.add(updated));
@@ -188,7 +153,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=24');
+    const { seedDemo } = await import('./demo.js?v=25');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -264,7 +229,7 @@ async function renderSettings() {
     const label = document.createElement('button'); label.type = 'button'; label.className = 'edit-tag';
     label.setAttribute('aria-label', `修改标签：${tag.name}`);
     label.addEventListener('click', () => openTagDialog(tag.group, tag));
-    label.textContent = tag.name + (tag.cycleDays ? ` · 每 ${tag.cycleDays} 天` : '');
+    label.textContent = tag.name;
     const button = document.createElement('button'); button.type = 'button';
     button.textContent = tag.archived ? '恢复' : '删除';
     button.className = tag.archived ? 'restore' : '';

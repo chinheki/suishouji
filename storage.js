@@ -39,20 +39,8 @@ export function recordOnce(database, event) {
       const tag = tagRequest.result;
       if (!tag || tag.archived) { result = { status: 'unavailable' }; return; }
       const events = tx.objectStore('events');
-      const save = () => { events.add({ ...event, tagName: tag.name, group: tag.group, timestampEnabled: Boolean(tag.timestampEnabled), cycleDays: tag.cycleDays ?? null }); result = { status: 'saved' }; };
-      // Timestamp cycles group observations; they do not limit event frequency.
-      if (tag.timestampEnabled || !tag.cycleDays) { save(); return; }
-      if (!validCycleDays(tag.cycleDays)) { result = { status: 'invalid-cycle' }; return; }
-      const range = IDBKeyRange.bound([tag.id, ''], [tag.id, '\uffff']);
-      const latest = events.index('tag_time').openCursor(range, 'prev');
-      latest.onsuccess = () => {
-        const previous = latest.result?.value;
-        const nextAt = previous ? Date.parse(previous.occurredAt) + tag.cycleDays * DAY_MS : null;
-        if (nextAt !== null && Date.parse(event.occurredAt) < nextAt) {
-          result = { status: 'blocked', nextAt, previous }; return;
-        }
-        save();
-      };
+      events.add({ ...event, tagName: tag.name, group: tag.group, cycleDays: null });
+      result = { status: 'saved' };
     };
   });
 }
