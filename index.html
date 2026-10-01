@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f9faf6">
+  <meta name="description" content="点一下，记一次。只保存在本机的实验记录。">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./style.css?v=24">
+  <title>随手记</title>
+</head>
+<body>
+  <main class="app">
+    <aside id="demo-banner" class="demo-banner" hidden>模拟数据 · 9月1日—29日<a href="./">返回真实记录</a></aside>
+    <div id="page-home" class="page">
+    <header><h1>随手记<span class="title-dot" aria-hidden="true"></span></h1><p>点一下，记一次</p></header>
+    <section aria-labelledby="conditions-title"><h2 id="conditions-title">实验条件</h2><div id="conditions" class="tags" aria-busy="true"></div></section>
+    <section aria-labelledby="results-title"><h2 id="results-title">实验结果</h2><div id="results" class="tags results" aria-busy="true"></div></section>
+    </div>
+    <div id="page-stats" class="page" hidden>
+      <header><h1>统计</h1><p>把发生的事，放在一起看</p></header>
+      <section><h2>实验条件 <small>可多选</small></h2><div id="filter-conditions" class="tags"></div></section>
+      <section><h2>实验结果 <small>选一个</small></h2><div id="filter-results" class="tags results"></div></section>
+      <section class="stats-settings"><h2>统计设置 <small>适用于下方所有图表</small></h2><div class="chart-heading"><label class="period-label">周期<select id="timeline-unit"><option value="day">每天</option><option value="week">每周</option><option value="month">每月</option></select></label><label class="period-label">月份<input type="month" id="chart-month" aria-label="统计月份"></label><button id="all-time" class="quiet-button" type="button" aria-pressed="false">全部</button></div><div class="offset-controls"><span>结果对照条件</span><label>方向<select id="offset-direction"><option value="0">同一周期</option><option value="1">前</option><option value="-1">后</option></select></label><label>周期数<input id="offset-count" type="number" min="1" max="365" step="1" value="1" disabled></label><span>个周期</span></div><p id="offset-help" class="chart-help"></p></section><section class="chart-section"><h2>周期对照</h2><p class="chart-help">每列以结果周期为准，条件按偏移对齐；左右滑动查看日期。</p><div id="dot-chart"></div><p id="point-detail" class="point-detail" role="status">点选圆点，查看具体时间。</p></section>
+      <section class="scatter-section">
+        <h2>看看关联 <small id="association-kind">散点图</small></h2>
+        <p id="association-help" class="chart-help">横轴看条件，纵轴看结果；每个点代表一个周期。</p>
+        <div class="scatter-controls">
+          <fieldset class="association-conditions"><legend>横轴条件 · 可多选</legend><div id="scatter-condition"></div></fieldset>
+
+        </div>
+        <p id="scatter-summary" class="chart-help" role="status"></p>
+        <div id="scatter-plot"></div>
+        <p id="scatter-detail" class="point-detail" role="status"></p>
+        <p id="scatter-note" class="chart-help"></p>
+      </section>
+      <section class="scatter-section"><h2>看看关联 <small>时间段</small></h2><label class="period-label">实验条件 · 单选<select id="time-condition"></select></label><p class="chart-help">按每条条件记录的实际时刻，对照结果已记录与未记录；共用上方的周期与偏移。</p><div id="time-chart"></div><p id="time-detail" class="point-detail" role="status"></p><p class="chart-help">纵轴按本地时间精确到分钟，同周期多次记录分别绘制。未记录不等于未发生，关联不代表因果。</p></section>
+      <button id="view-records" class="records-entry" type="button">查看全部记录 <span>→</span></button>
+    </div>
+    <div id="page-records" class="page" hidden>
+      <button id="records-back" type="button" class="quiet-button">← 返回统计</button>
+      <header><h1>记录详情</h1><p>从新到旧，查看每一次记录</p></header>
+      <div class="record-filters">
+        <label>搜索标签<input id="records-search" type="search" placeholder="输入标签名称"></label>
+        <label>分组<select id="records-group"><option value="">全部</option><option value="conditions">实验条件</option><option value="results">实验结果</option></select></label>
+        <label>开始日期<input id="records-from" type="date"></label><label>结束日期<input id="records-to" type="date"></label>
+      </div><button id="records-reset" class="quiet-button" type="button">清除筛选</button>
+      <p id="records-summary" class="chart-help" role="status"></p><div id="records-list"></div><button id="records-more" type="button" class="quiet-button" hidden>加载更多</button>
+    </div>
+    <div id="page-settings" class="page" hidden>
+      <header><h1>设置</h1><p>留下常用的标签</p></header>
+      <p class="settings-help">点击标签所在行修改；删除后首页不再显示，历史记录保留。</p>
+      <section><h2>实验条件</h2><div id="manage-conditions"></div></section>
+      <section><h2>实验结果</h2><div id="manage-results"></div></section>
+      <details id="archived-section"><summary>已删除的标签 <span id="archived-count"></span></summary><div id="archived-tags"></div></details>
+    </div>
+    <p id="error" class="error" role="alert" hidden></p>
+    <footer><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="6" y="10" width="12" height="10" rx="3"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></svg><span id="storage-status">仅保存在本机</span></footer>
+  </main>
+  <nav class="tabbar" aria-label="主导航">
+    <button type="button" data-page="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/></svg><span>首页</span></button>
+    <button type="button" data-page="stats"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3v17h17"/><circle cx="9" cy="13" r="1.5"/><circle cx="14" cy="8" r="1.5"/><circle cx="19" cy="11" r="1.5"/></svg><span>统计</span></button>
+    <button type="button" data-page="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg><span>设置</span></button>
+  </nav>
+  <div id="toast" class="toast" hidden><span id="toast-text" role="status" aria-live="polite"></span><button id="undo" type="button">撤销</button></div>
+  <dialog id="add-dialog">
+    <form id="add-form">
+      <div class="dialog-heading"><h2 id="dialog-title">添加标签</h2><button type="button" id="close-dialog" class="close" aria-label="关闭">×</button></div>
+      <label for="tag-name">标签名称</label>
+      <input id="tag-name" name="name" maxlength="24" placeholder="例如：喝了咖啡" autocomplete="off" required>
+      <fieldset id="cycle-fieldset" class="cycle-fieldset">
+        <label class="cycle-toggle"><span>实验周期 <small>可选</small></span><input type="checkbox" id="cycle-enabled" aria-label="启用实验周期"></label>
+        <div id="cycle-controls" hidden>
+          <div id="cycle-slider" class="cycle-slider" role="radiogroup" aria-label="实验周期">
+            <span class="cycle-thumb" aria-hidden="true"></span>
+            <label><input type="radio" name="cycle" value="daily" checked><span>每日</span></label>
+            <label><input type="radio" name="cycle" value="weekly"><span>每周</span></label>
+            <label><input type="radio" name="cycle" value="monthly"><span>每月</span></label>
+            <label><input type="radio" name="cycle" value="custom"><span>自定义</span></label>
+          </div>
+          <label id="custom-days-wrap" class="custom-days-wrap" hidden>周期天数<input id="custom-days" type="number" inputmode="numeric" min="1" max="36500" step="1" placeholder="例如：3"></label>
+          <p id="cycle-hint" class="cycle-hint">距上次记录满 1 天后可再记（1 天 = 24 小时）。</p>
+        </div>
+      </fieldset>
+      <p id="form-error" class="form-error" role="alert"></p>
+      <button id="add-submit" class="submit" type="submit" disabled>添加标签</button>
+    </form>
+  </dialog>
+  <script type="module" src="./app.js?v=24"></script>
+</body>
+</html>

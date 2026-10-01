@@ -1,0 +1,60 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>实验周期验证</title><pre id="results">运行中</pre><script type="module">
+import { openDatabase, recordOnce, DAY_MS } from '../storage.js?v=8';
+const lines=[];
+const assert=(value,label)=>{if(!value)throw new Error(label);lines.push('PASS '+label)};
+const name='suishouji-test-'+crypto.randomUUID();
+let db;
+const write=(store,op)=>new Promise((resolve,reject)=>{const tx=db.transaction(store,'readwrite');op(tx.objectStore(store));tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error)});
+const all=(store)=>new Promise((resolve,reject)=>{const r=db.transaction(store).objectStore(store).getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+const now=Date.parse('2026-09-30T10:00:00.000Z');
+const event=(tagId,time=now)=>({id:crypto.randomUUID(),tagId,tagName:'测试',group:'conditions',occurredAt:new Date(time).toISOString()});
+try {
+  // Seed an actual version-1 database, then exercise the production migration.
+  await new Promise((resolve,reject)=>{const r=indexedDB.open(name,1);r.onupgradeneeded=()=>{const d=r.result;const tags=d.createObjectStore('tags',{keyPath:'id'});tags.createIndex('group_name',['group','name'],{unique:true});tags.add({id:'old',name:'旧标签',group:'conditions'});const events=d.createObjectStore('events',{keyPath:'id'});events.createIndex('tagId','tagId');events.createIndex('occurredAt','occurredAt');events.add(event('old',now-DAY_MS))};r.onsuccess=()=>{r.result.close();resolve()};r.onerror=()=>reject(r.error)});
+  db=await openDatabase(name);
+  assert((await all('events')).length===1 && (await all('tags')).length===1,'v1 升级保留原标签与事件');
+  assert((await recordOnce(db,event('old'))).status==='saved','无周期旧标签可重复记录');
+  for (const days of [1,7,30,3]) {
+    const id='cycle'+days;
+    await write('tags',s=>s.add({id,name:id,group:'conditions',cycleDays:days}));
+    assert((await recordOnce(db,event(id))).status==='saved',days+' 天周期首次记录成功');
+    assert((await recordOnce(db,event(id,now+days*DAY_MS-1))).status==='blocked',days+' 天周期边界前 1ms 拦截');
+    assert((await recordOnce(db,event(id,now+days*DAY_MS))).status==='saved',days+' 天周期恰好到期允许');
+  }
+  await write('tags',s=>s.add({id:'race',name:'并发',group:'conditions',cycleDays:1}));
+  await write('tags',s=>s.add({id:'result-cycle',name:'周期结果',group:'results',cycleDays:7}));
+  assert((await recordOnce(db,event('result-cycle'))).status==='saved','结果标签首次记录成功');
+  assert((await recordOnce(db,event('result-cycle',now+7*DAY_MS-1))).status==='blocked','结果标签周期内拦截');
+  assert((await recordOnce(db,event('result-cycle',now+7*DAY_MS))).status==='saved','结果标签到期可记录');
+  await write('tags',s=>s.add({id:'timestamp',name:'入睡',group:'conditions',cycleDays:1,timestampEnabled:true}));
+  const stamped=event('timestamp');
+  await recordOnce(db,stamped);
+  const storedStamp=(await all('events')).find(e=>e.id===stamped.id);
+  assert(storedStamp.timestampEnabled===true && storedStamp.occurredAt===stamped.occurredAt,'时间戳标记和点击时间准确保存');
+  assert((await recordOnce(db,event('timestamp',now+1))).status==='saved','时间戳每日周期允许多次记录');
+  await write('events',s=>s.delete(stamped.id));
+  assert((await recordOnce(db,event('timestamp'))).status==='saved','时间戳撤销后可重记');
+  const historyBefore=JSON.stringify((await all('events')).filter(e=>e.tagId==='timestamp'));
+  await write('tags',s=>s.put({id:'timestamp',name:'改名后入睡',group:'conditions',cycleDays:7,timestampEnabled:false}));
+  assert(JSON.stringify((await all('events')).filter(e=>e.tagId==='timestamp'))===historyBefore,'修改名称周期与时间戳不改变历史事件');
+  assert((await recordOnce(db,event('timestamp',now+1))).status==='blocked','修改后的周期规则对新点击生效');
+  await recordOnce(db,event('timestamp',now+8*DAY_MS));
+  const afterEdit=(await all('events')).find(e=>e.tagId==='timestamp' && e.occurredAt===new Date(now+8*DAY_MS).toISOString());
+  assert(afterEdit.tagName==='改名后入睡' && afterEdit.timestampEnabled===false && afterEdit.cycleDays===7,'新记录保存修改后的属性快照');
+  const other=await openDatabase(name);
+  const race=await Promise.all([recordOnce(db,event('race')),recordOnce(other,event('race'))]);other.close();
+  assert(race.filter(r=>r.status==='saved').length===1 && race.filter(r=>r.status==='blocked').length===1,'两个数据库连接并发仅写入一次');
+  const saved=(await all('events')).find(e=>e.tagId==='race');
+  await write('events',s=>s.delete(saved.id));
+  assert((await recordOnce(db,event('race'))).status==='saved','撤销后可立即重记');
+  await write('tags',s=>s.add({id:'latest',name:'最近时间',group:'conditions',cycleDays:1}));
+  await write('events',s=>{s.add(event('latest',now));s.add(event('latest',now-10*DAY_MS))});
+  assert((await recordOnce(db,event('latest',now+1))).status==='blocked','按最近发生时间而非插入顺序检查');
+  let duplicate=false;try{await write('tags',s=>s.add({id:'duplicate',name:'并发',group:'conditions'}))}catch(e){duplicate=e.name==='ConstraintError'}
+  assert(duplicate,'数据库唯一约束拦截同组重名');
+  db.close();db=await openDatabase(name);
+  assert((await recordOnce(db,event('race'))).status==='blocked','关闭并重新打开后周期限制仍有效');
+  document.querySelector('pre').textContent=lines.join('\n')+'\n全部通过';
+} catch(error){document.querySelector('pre').textContent=lines.join('\n')+'\nFAIL '+error.stack}
+finally{db?.close();indexedDB.deleteDatabase(name)}
+</script></html>
