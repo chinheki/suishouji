@@ -203,3 +203,9 @@ IndexedDB 数据库 `suishouji`：`tags` 保存标签，`events` 保存每次事
 新增 .github/workflows/pages.yml：main 推送或手动触发，先运行统计测试，再仅打包网站运行文件，使用 GitHub Pages artifact 发布；文档、测试、发布 ZIP 不进入站点产物。仓库 Pages 来源需设为 GitHub Actions。采用 GitHub 官方 Pages 工作流：https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages 。
 
 本地统计测试通过。当前目录尚无 Git 仓库和远端，本机 gh 未登录，目标账号为 chinheki，具体仓库待确认；尚未推送或触发远端 Actions，不能视为已上线。
+
+## 已发布到 GitHub Pages（2026-10-01）
+
+公开仓库：https://github.com/chinheki/suishouji 。站点：https://chinheki.github.io/suishouji/ 。Actions：https://github.com/chinheki/suishouji/actions 。已授权并完成首次源码推送，通过 Actions 构建并发布；浏览器已确认正式 HTTPS 地址能载入首页与默认标签。
+
+真实记录依旧只在浏览器 IndexedDB 中；localhost 与 GitHub Pages 是不同来源，不会自动搬迁本地记录。公开的 demo-data.js 仅含虚构模拟数据。后续推送 main 自动执行统计测试及部署。本次未做真实设备安装验证。
