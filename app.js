@@ -1,6 +1,6 @@
-import { periodStart, shiftPeriod } from './scatter.js?v=26';
-import { renderScatter } from './scatter-ui.js?v=26';
-import { openDatabase, recordOnce, normalizeName, exportBackup } from './storage.js?v=26';
+import { periodStart, shiftPeriod } from './scatter.js?v=27';
+import { renderScatter } from './scatter-ui.js?v=27';
+import { openDatabase, recordOnce, normalizeName, exportBackup } from './storage.js?v=27';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -153,7 +153,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=26');
+    const { seedDemo } = await import('./demo.js?v=27');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -161,7 +161,7 @@ try {
   db.onversionchange = () => { db.close(); showError('应用已更新，请刷新后继续记录。'); };
   await renderTags();
 } catch { showError('无法打开本机数据库，请使用正常浏览模式，检查浏览器是否允许网站存储后刷新。'); }
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).catch(() => {});
 
 let currentPage = 'home';
 const selectedConditions = new Set();
@@ -401,4 +401,33 @@ $('backup-share').addEventListener('click',async()=>{
   if(!backupFile)return;
   try{await navigator.share({files:[backupFile],title:'随手记备份'});}
   catch(error){if(error.name!=='AbortError')$('backup-status').textContent='分享未完成，请使用“保存备份文件”。';}
+});
+
+const APP_VERSION='27';
+let availableVersion=null;
+$('check-update').addEventListener('click',async()=>{
+  const button=$('check-update');button.disabled=true;$('apply-update').hidden=true;
+  $('update-status').textContent='正在检查…';
+  try{
+    const url=new URL('./index.html',location.href);url.searchParams.set('check',Date.now());
+    const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('network');
+    const html=await response.text();
+    const match=html.match(/src=["']\.\/app\.js\?v=(\d+)["']/);
+    if(!match)throw Error('version');
+    availableVersion=match[1];
+    if(Number(availableVersion)>Number(APP_VERSION)){
+      $('update-status').textContent=`发现 v${availableVersion}，当前 v${APP_VERSION}。点击更新并重启。`;
+      $('apply-update').hidden=false;
+    }else $('update-status').textContent=`当前已是最新版本 v${APP_VERSION}。`;
+  }catch{$('update-status').textContent='暂时无法检查更新，请联网后重试。';}
+  finally{button.disabled=false;}
+});
+$('apply-update').addEventListener('click',async()=>{
+  $('apply-update').disabled=true;$('update-status').textContent='正在更新，即将重新打开…';
+  try{
+    const registration=await navigator.serviceWorker?.getRegistration();
+    if(registration)await registration.update();
+    const url=new URL(location.href);url.searchParams.set('v',availableVersion);url.searchParams.set('refresh',Date.now());
+    location.replace(url.href);
+  }catch{$('apply-update').disabled=false;$('update-status').textContent='更新未完成，请联网后重试。';}
 });
