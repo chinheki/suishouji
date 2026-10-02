@@ -1,6 +1,6 @@
-import { periodStart, shiftPeriod } from './scatter.js?v=28';
-import { renderScatter } from './scatter-ui.js?v=28';
-import { openDatabase, recordOnce, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=28';
+import { periodStart, shiftPeriod } from './scatter.js?v=29';
+import { renderScatter } from './scatter-ui.js?v=29';
+import { openDatabase, recordOnce, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=29';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -153,7 +153,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=28');
+    const { seedDemo } = await import('./demo.js?v=29');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -172,7 +172,7 @@ $('chart-month').value = `${new Date().getFullYear()}-${String(new Date().getMon
 
 async function showPage(page) {
   currentPage = page;
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  document.querySelector('.app').scrollTo({ top: 0, behavior: 'instant' });
   for (const name of ['home', 'stats', 'settings', 'records']) $('page-' + name).hidden = name !== page;
   document.querySelectorAll('[data-page]').forEach((button) => {
     if (button.dataset.page === (page === 'records' ? 'stats' : page)) button.setAttribute('aria-current', 'page');
@@ -403,7 +403,7 @@ $('backup-share').addEventListener('click',async()=>{
   catch(error){if(error.name!=='AbortError')$('backup-status').textContent='分享未完成，请使用“保存备份文件”。';}
 });
 
-const APP_VERSION='28';
+const APP_VERSION='29';
 let availableVersion=null;
 $('check-update').addEventListener('click',async()=>{
   const button=$('check-update');button.disabled=true;$('apply-update').hidden=true;
@@ -454,3 +454,28 @@ $('import-confirm').addEventListener('click',async()=>{
   }catch(error){$('import-status').textContent=error.message||'导入失败，原数据未修改。';}
   finally{$('import-confirm').disabled=false;$('import-file').disabled=false;}
 });
+
+// Content owns scrolling; the navigation is a separate, non-scrolling grid row.
+const scrollArea=document.querySelector('.app');
+let pickerPosition=null,pickerRestoreTimer=null;
+function rememberPickerPosition(){pickerPosition={x:scrollArea.scrollLeft,y:scrollArea.scrollTop,page:currentPage};}
+function restorePickerPosition(){
+  if(!pickerPosition)return;
+  const position=pickerPosition;pickerPosition=null;
+  $('import-file').blur();
+  const restore=()=>{
+    if(currentPage!==position.page)return;
+    const max=Math.max(0,scrollArea.scrollHeight-scrollArea.clientHeight);
+    window.scrollTo(0,0);
+    scrollArea.scrollTo({left:position.x,top:Math.min(position.y,max),behavior:'instant'});
+  };
+  requestAnimationFrame(()=>requestAnimationFrame(restore));
+  clearTimeout(pickerRestoreTimer);pickerRestoreTimer=setTimeout(restore,200);
+}
+$('import-file').addEventListener('pointerdown',rememberPickerPosition);
+$('import-file').addEventListener('click',()=>{if(!pickerPosition)rememberPickerPosition();});
+$('import-file').addEventListener('change',restorePickerPosition);
+$('import-file').addEventListener('cancel',restorePickerPosition);
+window.addEventListener('focus',()=>{if(pickerPosition)setTimeout(restorePickerPosition,100);});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&pickerPosition)setTimeout(restorePickerPosition,100);});
+window.addEventListener('touchstart',()=>clearTimeout(pickerRestoreTimer),{passive:true});
