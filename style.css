@@ -45,3 +45,5 @@ body{height:100vh;height:100dvh;overflow:hidden;display:grid;grid-template-rows:
 .app>.page,.app>aside,.app>footer{flex-shrink:0}
 .tabbar{position:relative;bottom:auto;left:auto;right:auto}
 #import-file,#import-confirm{scroll-margin-block:24px}
+
+#home-search{width:100%;margin:0 0 30px;padding:13px 16px;border:1px solid #dce3d5;border-radius:14px;background:transparent;color:#354238;font-size:16px}.tag.home-expand{background:transparent;color:#788770;font-size:14px;border:1px solid #dce3d5}
