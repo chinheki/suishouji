@@ -44,3 +44,12 @@ export function recordOnce(database, event) {
     };
   });
 }
+
+export function exportBackup(database) {
+  return new Promise((resolve,reject)=>{
+    const tx=database.transaction(['tags','events'],'readonly');
+    const tags=tx.objectStore('tags').getAll(),events=tx.objectStore('events').getAll();
+    tx.oncomplete=()=>resolve({format:'suishouji-backup',version:1,exportedAt:new Date().toISOString(),source:database.name==='suishouji-demo-v1'?'demo':'personal',tags:tags.result,events:events.result});
+    tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('备份读取中断'));
+  });
+}

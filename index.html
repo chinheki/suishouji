@@ -8,7 +8,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=25">
+  <link rel="stylesheet" href="./style.css?v=26">
   <title>随手记</title>
 </head>
 <body>
@@ -54,6 +54,7 @@
       <p class="settings-help">点击标签所在行修改；删除后首页不再显示，历史记录保留。</p>
       <section><h2>实验条件</h2><div id="manage-conditions"></div></section>
       <section><h2>实验结果</h2><div id="manage-results"></div></section>
+      <section><h2>数据备份</h2><p class="chart-help">导出当前浏览器的全部标签和记录，包含已删除标签。请将文件保存到“文件”App 或其他安全位置。</p><button id="export-backup" class="quiet-button" type="button">导出备份</button><p id="backup-status" class="chart-help" role="status"></p><a id="backup-download" hidden>保存备份文件</a><button id="backup-share" class="quiet-button" type="button" hidden>分享／存储到文件</button></section>
       <details id="archived-section"><summary>已删除的标签 <span id="archived-count"></span></summary><div id="archived-tags"></div></details>
     </div>
     <p id="error" class="error" role="alert" hidden></p>
@@ -74,6 +75,6 @@
       <button id="add-submit" class="submit" type="submit" disabled>添加标签</button>
     </form>
   </dialog>
-  <script type="module" src="./app.js?v=25"></script>
+  <script type="module" src="./app.js?v=26"></script>
 </body>
 </html>

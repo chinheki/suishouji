@@ -1,6 +1,6 @@
-import { periodStart, shiftPeriod } from './scatter.js?v=25';
-import { renderScatter } from './scatter-ui.js?v=25';
-import { openDatabase, recordOnce, normalizeName } from './storage.js?v=25';
+import { periodStart, shiftPeriod } from './scatter.js?v=26';
+import { renderScatter } from './scatter-ui.js?v=26';
+import { openDatabase, recordOnce, normalizeName, exportBackup } from './storage.js?v=26';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -153,7 +153,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=25');
+    const { seedDemo } = await import('./demo.js?v=26');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -381,3 +381,24 @@ if (demoMode && db) {
 }
 
 for (const id of ['scatter-condition','time-condition']) $(id).addEventListener('change', () => void renderStats().catch(() => showError('统计读取失败，请重试。')));
+
+let backupURL=null,backupFile=null;
+$('export-backup').addEventListener('click',async()=>{
+  const button=$('export-backup');button.disabled=true;
+  $('backup-status').textContent='正在读取备份…';$('backup-share').hidden=true;$('backup-download').hidden=true;
+  try{
+    const backup=await exportBackup(db);
+    const filename=`suishouji-${backup.source}-${backup.exportedAt.replace(/[:.]/g,'-')}.json`;
+    backupFile=new File([JSON.stringify(backup,null,2)],filename,{type:'application/json'});
+    if(backupURL)URL.revokeObjectURL(backupURL);backupURL=URL.createObjectURL(backupFile);
+    const link=$('backup-download');link.href=backupURL;link.download=filename;link.hidden=false;
+    $('backup-share').hidden=!(navigator.canShare?.({files:[backupFile]}));
+    $('backup-status').textContent=`备份已生成：${backup.tags.length} 个标签、${backup.events.length} 条记录${backup.source==='demo'?'（模拟数据）':''}。请点击保存文件；生成不等于已保存。`;
+  }catch{$('backup-status').textContent='备份生成失败，请重试。';}
+  finally{button.disabled=false;}
+});
+$('backup-share').addEventListener('click',async()=>{
+  if(!backupFile)return;
+  try{await navigator.share({files:[backupFile],title:'随手记备份'});}
+  catch(error){if(error.name!=='AbortError')$('backup-status').textContent='分享未完成，请使用“保存备份文件”。';}
+});
