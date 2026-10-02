@@ -36,3 +36,5 @@
 .time-scatter{display:block;width:100%;overflow:visible;margin-top:20px}
 
 .records-entry{display:flex;justify-content:space-between;width:100%;margin-top:32px;padding:20px 0;background:transparent;border:0;border-top:1px solid #dfe5d8;color:#52624b;font-size:15px}.record-filters{display:grid;grid-template-columns:1fr 1fr;gap:14px}.record-filters label{font-size:12px;min-width:0}.record-filters input,.record-filters select{display:block;width:100%;min-width:0;padding:10px;margin-top:8px;background:transparent;border:1px solid #dce3d5;border-radius:8px;color:#52624b}#page-records header{margin:24px 0 30px}#page-records h1{font-size:32px}.record-card{margin:0;border-bottom:1px solid #e2e8dc}.record-card summary{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:18px 0}.record-card strong{font-size:14px;font-weight:500;overflow-wrap:anywhere}.record-card time{font-size:11px;flex-shrink:0}.record-card p{font-size:12px;line-height:1.8;margin:0 0 18px}#records-more{margin-top:20px}
+
+.import-label{display:block;margin-top:24px;font-size:14px}.import-label input{display:block;margin-top:12px;width:100%;font-size:12px}

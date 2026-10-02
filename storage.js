@@ -53,3 +53,32 @@ export function exportBackup(database) {
     tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('备份读取中断'));
   });
 }
+
+export function validateBackup(data) {
+  if (!data || data.format !== 'suishouji-backup' || data.version !== 1 || !Array.isArray(data.tags) || !Array.isArray(data.events)) throw new Error('不是支持的随手记备份文件');
+  const ids=new Set(),names=new Set(),eventIds=new Set();
+  for(const tag of data.tags){
+    if(!tag || typeof tag.id!=='string'||!tag.id||typeof tag.name!=='string'||!normalizeName(tag.name)||!['conditions','results'].includes(tag.group)||ids.has(tag.id))throw new Error('备份标签数据无效');
+    const key=JSON.stringify([tag.group,normalizeName(tag.name)]);if(names.has(key))throw new Error('备份中存在重复标签名称');names.add(key);ids.add(tag.id);
+  }
+  for(const event of data.events){
+    if(!event||typeof event.id!=='string'||!event.id||eventIds.has(event.id)||!ids.has(event.tagId)||typeof event.occurredAt!=='string'||!Number.isFinite(Date.parse(event.occurredAt)))throw new Error('备份记录数据无效');
+    eventIds.add(event.id);
+  }
+  return data;
+}
+export function importBackup(database,raw) {
+  const data=validateBackup(raw);
+  if(data.source==='demo' && database.name==='suishouji')throw new Error('模拟备份不能导入真实记录');
+  return new Promise((resolve,reject)=>{
+    const tx=database.transaction(['tags','events'],'readwrite');
+    tx.oncomplete=()=>resolve({tags:data.tags.length,events:data.events.length});
+    tx.onabort=()=>reject(tx.error||new Error('导入失败，原数据未修改'));tx.onerror=()=>{};
+    const tags=tx.objectStore('tags'),events=tx.objectStore('events');
+    try{
+      tags.clear();events.clear();
+      for(const tag of data.tags)tags.add({...tag,name:normalizeName(tag.name)});
+      for(const event of data.events)events.add(event);
+    }catch(error){tx.abort();reject(error);}
+  });
+}

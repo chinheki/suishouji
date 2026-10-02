@@ -1,6 +1,6 @@
-import { periodStart, shiftPeriod } from './scatter.js?v=27';
-import { renderScatter } from './scatter-ui.js?v=27';
-import { openDatabase, recordOnce, normalizeName, exportBackup } from './storage.js?v=27';
+import { periodStart, shiftPeriod } from './scatter.js?v=28';
+import { renderScatter } from './scatter-ui.js?v=28';
+import { openDatabase, recordOnce, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=28';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -153,7 +153,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=27');
+    const { seedDemo } = await import('./demo.js?v=28');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -403,7 +403,7 @@ $('backup-share').addEventListener('click',async()=>{
   catch(error){if(error.name!=='AbortError')$('backup-status').textContent='分享未完成，请使用“保存备份文件”。';}
 });
 
-const APP_VERSION='27';
+const APP_VERSION='28';
 let availableVersion=null;
 $('check-update').addEventListener('click',async()=>{
   const button=$('check-update');button.disabled=true;$('apply-update').hidden=true;
@@ -430,4 +430,27 @@ $('apply-update').addEventListener('click',async()=>{
     const url=new URL(location.href);url.searchParams.set('v',availableVersion);url.searchParams.set('refresh',Date.now());
     location.replace(url.href);
   }catch{$('apply-update').disabled=false;$('update-status').textContent='更新未完成，请联网后重试。';}
+});
+
+let pendingBackup=null;
+$('import-file').addEventListener('change',async()=>{
+  pendingBackup=null;$('import-confirm').hidden=true;
+  const file=$('import-file').files[0];if(!file)return;
+  try{
+    if(file.size>50*1024*1024)throw Error('备份超过 50MB，暂不支持');
+    const data=validateBackup(JSON.parse(await file.text()));
+    if(data.source==='demo'&&!demoMode)throw Error('模拟备份不能导入真实记录');
+    pendingBackup=data;$('import-status').textContent=`读取到 ${data.tags.length} 个标签、${data.events.length} 条记录。将全部覆盖当前标签和记录（包括空备份）。此操作不能撤销，请确认已保存当前备份。`;
+    $('import-confirm').hidden=false;
+  }catch(error){$('import-status').textContent=error instanceof SyntaxError?'文件不是有效的 JSON 备份':error.message;}
+});
+$('import-confirm').addEventListener('click',async()=>{
+  if(!pendingBackup)return;
+  $('import-confirm').disabled=true;$('import-file').disabled=true;
+  try{
+    const result=await importBackup(db,pendingBackup);pendingBackup=null;
+    $('import-status').textContent=`覆盖完成：${result.tags} 个标签、${result.events} 条记录。`;
+    $('import-confirm').hidden=true;$('import-file').value='';lastEvent=null;$('toast').hidden=true;selectedConditions.clear();selectedResult=null;await renderSettings();
+  }catch(error){$('import-status').textContent=error.message||'导入失败，原数据未修改。';}
+  finally{$('import-confirm').disabled=false;$('import-file').disabled=false;}
 });

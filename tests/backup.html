@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><pre id="out">运行中</pre><script type="module">
+import {openDatabase,exportBackup,importBackup} from '../storage.js?v=28';
+const name='backup-test-'+crypto.randomUUID(),db=await openDatabase(name),lines=[];
+const check=(v,s)=>{if(!v)throw Error(s);lines.push('PASS '+s)};
+const data={format:'suishouji-backup',version:1,source:'personal',tags:[{id:'a',name:'A',group:'conditions',archived:true}],events:[{id:'e',tagId:'a',occurredAt:'2026-10-01T12:34:56Z',tagName:'旧名'}]};
+try{
+ await importBackup(db,data);let b=await exportBackup(db);check(b.tags[0].archived&&b.events[0].tagName==='旧名','历史字段完整恢复');
+ await importBackup(db,data);check((await exportBackup(db)).events.length===1,'重复覆盖不会增加记录');
+ let failed=false;try{await importBackup(db,{...data,events:[{id:'bad',tagId:'missing',occurredAt:'bad'}]})}catch{failed=true}check(failed&&(await exportBackup(db)).events.length===1,'无效文件不清空数据');
+ failed=false;try{await importBackup(db,{...data,tags:[{...data.tags[0],group:'conditions'},{id:'b',name:'B',group:'results',extra:()=>{}}]})}catch{failed=true}check(failed&&(await exportBackup(db)).events.length===1,'写入失败整笔回滚');
+ await importBackup(db,{...data,tags:[],events:[]});b=await exportBackup(db);check(!b.tags.length&&!b.events.length,'空备份全量覆盖');
+ document.getElementById('out').textContent=lines.join('\n');
+}catch(e){document.getElementById('out').textContent=lines.join('\n')+'\nFAIL '+e}finally{db.close();indexedDB.deleteDatabase(name)}
+</script>
