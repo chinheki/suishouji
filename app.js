@@ -1,6 +1,6 @@
-import { periodStart, shiftPeriod } from './scatter.js?v=30';
-import { renderScatter } from './scatter-ui.js?v=30';
-import { openDatabase, recordOnce, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=30';
+import { periodStart, shiftPeriod } from './scatter.js?v=31';
+import { renderScatter } from './scatter-ui.js?v=31';
+import { openDatabase, recordOnce, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=31';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -27,6 +27,26 @@ function transaction(store, mode, operation) {
 function showError(message) { $('error').textContent = message; $('error').hidden = false; }
 function clearError() { $('error').hidden = true; }
 
+const iconNames={tortoise:'陆龟',cat:'猫',fish:'鱼',turtle:'水龟',face:'人脸'};
+let homeIcon='',selectedIcon='';
+function iconImage(key){
+  if(!iconNames[key])return null;
+  const img=document.createElement('img');img.src=`./icons/${key}.svg`;img.className='tag-icon';img.alt=iconNames[key];return img;
+}
+function prependIcon(node,key){const img=iconImage(key);if(img)node.prepend(img);}
+function renderIconChoices(container,value,onSelect,filter=false){
+  container.replaceChildren();
+  for(const [key,name] of [['',filter?'全部':'无图标'],...Object.entries(iconNames),...(filter?[['none','未分类']]:[])]){
+    const button=document.createElement('button');button.type='button';button.className='icon-choice';
+    button.setAttribute('aria-label',name);button.setAttribute('aria-pressed',String(value===key));
+    const img=iconImage(key);if(img)button.append(img);
+    const text=document.createElement('span');text.textContent=name;button.append(text);
+    button.addEventListener('click',()=>onSelect(key));container.append(button);
+  }
+}
+function renderHomeIcons(){renderIconChoices($('home-icons'),homeIcon,key=>{homeIcon=key;renderHomeIcons();void renderTags().catch(()=>showError('标签读取失败，请重试。'));},true);}
+function renderTagIcons(){renderIconChoices($('tag-icons'),selectedIcon,key=>{selectedIcon=key;renderTagIcons();});}
+renderHomeIcons();
 const homeExpanded = {conditions:false,results:false};
 let homeRenderRevision=0;
 const searchKey=text=>text.normalize('NFKC').toLocaleLowerCase().replace(/\s+/g,'');
@@ -46,7 +66,7 @@ async function renderTags() {
   for (const group of groups) {
     const container = $(group);
     container.replaceChildren();
-    const matching=tags.filter(tag=>tag.group===group&&!tag.archived&&matchesHomeSearch(tag.name,query))
+    const matching=tags.filter(tag=>tag.group===group&&!tag.archived&&(!homeIcon||(homeIcon==='none'?!iconNames[tag.icon]:tag.icon===homeIcon))&&matchesHomeSearch(tag.name,query))
       .sort((a,b)=>(lastUsed.get(b.id)||0)-(lastUsed.get(a.id)||0)||(Date.parse(b.createdAt)||0)-(Date.parse(a.createdAt)||0)||(b.order||0)-(a.order||0)||a.id.localeCompare(b.id));
     const limit=group==='conditions'?10:5;
     const visible=query||homeExpanded[group]?matching:matching.slice(0,limit);
@@ -54,12 +74,12 @@ async function renderTags() {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'tag';
-      button.textContent = tag.name;
+      button.textContent = tag.name; prependIcon(button,tag.icon);
       button.setAttribute('aria-label', `记录一次：${tag.name}`);
       button.addEventListener('click', () => recordEvent(tag, button));
       container.append(button);
     });
-    if(!matching.length&&query){const empty=document.createElement('p');empty.className='empty';empty.textContent='没有匹配的标签';container.append(empty);}
+    if(!matching.length&&(query||homeIcon)){const empty=document.createElement('p');empty.className='empty';empty.textContent='没有匹配的标签';container.append(empty);}
     if(!query&&matching.length>limit){
       const toggle=document.createElement('button');toggle.type='button';toggle.className='tag home-expand';
       toggle.textContent=homeExpanded[group]?'收起':`展开其余 ${matching.length-limit} 个`;
@@ -76,7 +96,7 @@ async function renderTags() {
 
 let editingTag = null;
 function openTagDialog(group, tag = null) {
-  editingTag = tag; activeGroup = group;
+  editingTag = tag; activeGroup = group; selectedIcon=iconNames[tag?.icon]?tag.icon:'';renderTagIcons();
   $('dialog-title').textContent = `${tag ? '修改' : '添加'}${group === 'conditions' ? '实验条件' : '实验结果'}`;
   $('add-submit').textContent = tag ? '保存修改' : '添加标签';
   $('tag-name').value = tag?.name || ''; $('form-error').textContent = '';
@@ -160,7 +180,7 @@ $('add-form').addEventListener('submit', async (event) => {
   try {
     const updated = {
       ...(editingTag || { id: crypto.randomUUID(), group: activeGroup, order: Date.now(), createdAt: new Date().toISOString() }),
-      name,
+      name, icon:selectedIcon,
       updatedAt: new Date().toISOString(),
     };
     await transaction('tags', 'readwrite', (store) => editingTag ? store.put(updated) : store.add(updated));
@@ -179,7 +199,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=30');
+    const { seedDemo } = await import('./demo.js?v=31');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -255,7 +275,7 @@ async function renderSettings() {
     const label = document.createElement('button'); label.type = 'button'; label.className = 'edit-tag';
     label.setAttribute('aria-label', `修改标签：${tag.name}`);
     label.addEventListener('click', () => openTagDialog(tag.group, tag));
-    label.textContent = tag.name;
+    label.textContent = tag.name; prependIcon(label,tag.icon);
     const button = document.createElement('button'); button.type = 'button';
     button.textContent = tag.archived ? '恢复' : '删除';
     button.className = tag.archived ? 'restore' : '';
@@ -263,6 +283,10 @@ async function renderSettings() {
     button.addEventListener('click', async () => {
       button.disabled = true;
       try {
+        if(!tag.archived){
+          const used=await transaction('events','readonly',store=>store.index('tagId').count(tag.id));
+          if(used&&!confirm(`“${tag.name}”已有 ${used} 条记录。删除只会隐藏标签，历史记录保留。确定删除？`)){button.disabled=false;return;}
+        }
         // Archive only the tag; event rows and their tag IDs remain unchanged.
         await transaction('tags', 'readwrite', (store) => store.put({ ...tag, archived: !tag.archived }));
         await renderSettings(); await renderTags(); clearError();
@@ -295,7 +319,7 @@ async function renderStats() {
     const container = $('filter-' + group); container.replaceChildren();
     tags.filter((tag) => tag.group === group).forEach((tag) => {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'tag';
-      button.textContent = tag.name + (tag.archived ? ' · 已删除' : '');
+      button.textContent = tag.name + (tag.archived ? ' · 已删除' : ''); prependIcon(button,tag.icon);
       button.setAttribute('aria-pressed', String(group === 'conditions' ? selectedConditions.has(tag.id) : selectedResult === tag.id));
       button.addEventListener('click', () => {
         if (group === 'conditions') {
@@ -429,7 +453,7 @@ $('backup-share').addEventListener('click',async()=>{
   catch(error){if(error.name!=='AbortError')$('backup-status').textContent='分享未完成，请使用“保存备份文件”。';}
 });
 
-const APP_VERSION='30';
+const APP_VERSION='31';
 let availableVersion=null;
 $('check-update').addEventListener('click',async()=>{
   const button=$('check-update');button.disabled=true;$('apply-update').hidden=true;

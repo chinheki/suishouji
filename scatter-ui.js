@@ -1,4 +1,4 @@
-import { buildScatter, quadrantGroups, minutePoints } from './scatter.js?v=30';
+import { buildScatter, quadrantGroups, minutePoints } from './scatter.js?v=31';
 const $ = id => document.getElementById(id);
 export function renderScatter(tags, events, selectedConditions, result, start, end) {
   const select = $('scatter-condition');
