@@ -1,5 +1,5 @@
-const CACHE = 'suishouji-shell-v31';
-const ASSETS = ['./icons/tortoise.svg','./icons/cat.svg','./icons/fish.svg','./icons/turtle.svg','./icons/face.svg','./', './index.html', './style.css?v=31', './app.js?v=31', './scatter-ui.js?v=31', './scatter.js?v=31', './demo.js?v=31', './demo-data.js', './storage.js?v=31', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
+const CACHE = 'suishouji-shell-v32';
+const ASSETS = ['./icons/tortoise.svg','./icons/cat.svg','./icons/fish.svg','./icons/turtle.svg','./icons/face.svg','./', './index.html', './style.css?v=32', './app.js?v=32', './scatter-ui.js?v=32', './scatter.js?v=32', './demo.js?v=32', './demo-data.js', './storage.js?v=32', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });

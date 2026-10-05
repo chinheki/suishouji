@@ -1,6 +1,6 @@
-import { periodStart, shiftPeriod } from './scatter.js?v=31';
-import { renderScatter } from './scatter-ui.js?v=31';
-import { openDatabase, recordOnce, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=31';
+import { periodStart, shiftPeriod } from './scatter.js?v=32';
+import { renderScatter } from './scatter-ui.js?v=32';
+import { openDatabase, recordOnce, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=32';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -27,7 +27,7 @@ function transaction(store, mode, operation) {
 function showError(message) { $('error').textContent = message; $('error').hidden = false; }
 function clearError() { $('error').hidden = true; }
 
-const iconNames={tortoise:'陆龟',cat:'猫',fish:'鱼',turtle:'水龟',face:'人脸'};
+const iconNames={tortoise:'陆龟',cat:'猫',fish:'鱼',turtle:'水龟',face:'人类'};
 let homeIcon='',selectedIcon='';
 function iconImage(key){
   if(!iconNames[key])return null;
@@ -199,7 +199,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=31');
+    const { seedDemo } = await import('./demo.js?v=32');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -453,7 +453,7 @@ $('backup-share').addEventListener('click',async()=>{
   catch(error){if(error.name!=='AbortError')$('backup-status').textContent='分享未完成，请使用“保存备份文件”。';}
 });
 
-const APP_VERSION='31';
+const APP_VERSION='32';
 let availableVersion=null;
 $('check-update').addEventListener('click',async()=>{
   const button=$('check-update');button.disabled=true;$('apply-update').hidden=true;
