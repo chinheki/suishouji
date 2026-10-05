@@ -49,3 +49,6 @@ body{height:100vh;height:100dvh;overflow:hidden;display:grid;grid-template-rows:
 #home-search{width:100%;margin:0 0 30px;padding:13px 16px;border:1px solid #dce3d5;border-radius:14px;background:transparent;color:#354238;font-size:16px}.tag.home-expand{background:transparent;color:#788770;font-size:14px;border:1px solid #dce3d5}
 
 .tag-icon{width:24px;height:24px;object-fit:contain;vertical-align:middle;flex-shrink:0;margin-right:7px}.icon-choices{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}.icon-choice{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-width:48px;min-height:56px;padding:8px;border:1px solid transparent;border-radius:12px;background:transparent;color:#788770;font-size:11px}.icon-choice .tag-icon{margin:0;width:28px;height:28px}.icon-choice[aria-pressed=true]{background:#e5eddf;border-color:#a8b99e;color:#354238}.icon-field{border:0;padding:0;margin:22px 0 0}.icon-field legend{font-size:14px;margin-bottom:12px}
+
+/* Use the SVG silhouette with the surrounding text color. */
+.tag-icon{display:inline-block;background-color:currentColor;-webkit-mask:var(--icon-url) center/contain no-repeat;mask:var(--icon-url) center/contain no-repeat}

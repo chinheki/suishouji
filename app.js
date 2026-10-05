@@ -1,6 +1,6 @@
-import { periodStart, shiftPeriod } from './scatter.js?v=32';
-import { renderScatter } from './scatter-ui.js?v=32';
-import { openDatabase, recordOnce, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=32';
+import { periodStart, shiftPeriod } from './scatter.js?v=33';
+import { renderScatter } from './scatter-ui.js?v=33';
+import { openDatabase, recordOnce, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=33';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -31,7 +31,7 @@ const iconNames={tortoise:'陆龟',cat:'猫',fish:'鱼',turtle:'水龟',face:'�
 let homeIcon='',selectedIcon='';
 function iconImage(key){
   if(!iconNames[key])return null;
-  const img=document.createElement('img');img.src=`./icons/${key}.svg`;img.className='tag-icon';img.alt=iconNames[key];return img;
+  const img=document.createElement('span');img.className='tag-icon';img.style.setProperty('--icon-url',`url("./icons/${key}.svg")`);img.setAttribute('role','img');img.setAttribute('aria-label',iconNames[key]);return img;
 }
 function prependIcon(node,key){const img=iconImage(key);if(img)node.prepend(img);}
 function renderIconChoices(container,value,onSelect,filter=false){
@@ -199,7 +199,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=32');
+    const { seedDemo } = await import('./demo.js?v=33');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -453,7 +453,7 @@ $('backup-share').addEventListener('click',async()=>{
   catch(error){if(error.name!=='AbortError')$('backup-status').textContent='分享未完成，请使用“保存备份文件”。';}
 });
 
-const APP_VERSION='32';
+const APP_VERSION='33';
 let availableVersion=null;
 $('check-update').addEventListener('click',async()=>{
   const button=$('check-update');button.disabled=true;$('apply-update').hidden=true;
