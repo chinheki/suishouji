@@ -1,10 +1,13 @@
-import { buildScatter, quadrantGroups, minutePoints } from './scatter.js?v=34';
+import { buildScatter, quadrantGroups, minutePoints } from './scatter.js?v=35';
 const $ = id => document.getElementById(id);
 export function renderScatter(tags, events, selectedConditions, result, start, end) {
   const select = $('scatter-condition');
   const available = tags.filter(t => selectedConditions.has(t.id));
   if (!select._selected) select._selected = new Set(available.map(t=>t.id));
   const ids = select._selected;
+  const previousAvailable=select._available||new Set();
+  for(const tag of available)if(!previousAvailable.has(tag.id))ids.add(tag.id);
+  select._available=new Set(available.map(tag=>tag.id));
   for (const id of ids) if (!available.some(t=>t.id===id)) ids.delete(id);
   const selected = available.filter(t=>ids.has(t.id));
   select.replaceChildren();

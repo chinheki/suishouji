@@ -1,0 +1,67 @@
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+const base=process.env.SUISHOUJI_TEST_URL||'http://127.0.0.1:4187';
+(async()=>{
+ const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
+ const context=await browser.newContext({viewport:{width:390,height:844},timezoneId:'Asia/Tokyo',hasTouch:true});
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const pass=text=>console.log('PASS '+text);
+ const data=()=>page.evaluate(async()=>{const {openDatabase,exportBackup}=await import('/storage.js?v=35');const db=await openDatabase();const data=await exportBackup(db);db.close();return data;});
+ const go=async name=>{await page.locator(`[data-page="${name}"]`).click();};
+ try{
+  for(const [path,id] of [['cycles.html','results'],['backup.html','out']]){
+    await page.goto(base+'/tests/'+path);await page.waitForFunction(id=>document.getElementById(id).textContent!=='运行中',id);
+    const output=await page.locator('#'+id).innerText();assert(!output.includes('FAIL'),output);console.log(output);
+  }
+  await page.goto(base);await page.locator('#conditions .tag:not(.add)').first().waitFor();
+  const ordinary=page.getByRole('button',{name:'记录一次：喝了咖啡',exact:true});
+  await ordinary.click();await page.waitForFunction(()=>document.querySelector('#conditions .recorded'));
+  assert.equal((await data()).events.length,1);assert(await ordinary.isDisabled());assert.match(await ordinary.innerText(),/已记录/);
+  await ordinary.dispatchEvent('click');assert.equal((await data()).events.length,1);pass('按下变色、冷却禁用和重复点击只保存一条');
+  await page.reload();await ordinary.waitFor();assert(await ordinary.isDisabled());pass('刷新后仍保留剩余冷却');
+  await page.waitForFunction(()=>!document.querySelector('#conditions .recorded'),{},{timeout:5000});
+  await ordinary.click();await page.waitForFunction(()=>!document.getElementById('toast').hidden);
+  await page.locator('#undo').click();await page.waitForFunction(()=>!document.querySelector('#page-home .recorded'));assert.equal((await data()).events.length,1);assert(await ordinary.isEnabled());
+  await ordinary.click();assert.equal((await data()).events.length,2);pass('冷却到期可记，撤销后立即重记');
+  await page.locator('#undo').click();await page.waitForFunction(()=>!document.querySelector('#page-home .recorded'));
+  await page.waitForFunction(()=>[...document.querySelectorAll('#conditions button')].some(b=>b.getAttribute('aria-label')==='记录一次：喝了咖啡'&&!b.disabled));
+  const box=await ordinary.boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.waitForTimeout(650);await page.mouse.up();
+  await page.locator('#record-dialog').waitFor({state:'visible'});assert.equal((await data()).events.length,1);
+  await page.locator('#record-date').fill('2026-10-01');await page.locator('#record-time').selectOption('18:00');await page.locator('#record-submit').click();
+  await page.locator('#record-dialog').waitFor({state:'hidden'});let snapshot=await data();assert.equal(snapshot.events.length,2);assert(snapshot.events.some(e=>e.backfilled&&e.occurredAt==='2026-10-01T09:00:00.000Z'));pass('长按不误触点击，补记本地18点只保存一条');
+  await page.locator('#undo').click();await page.waitForFunction(()=>!document.querySelector('#page-home .recorded'));
+  await ordinary.focus();await ordinary.press('Shift+F10');await page.locator('#record-dialog').waitFor({state:'visible'});await page.locator('#record-close').click();assert.equal((await data()).events.length,1);pass('键盘补记入口与取消不写入');
+  await page.getByRole('button',{name:'添加实验结果标签',exact:true}).click();
+  await page.locator('#tag-name').fill('陆龟体重');await page.locator('#tag-type').selectOption('number');await page.locator('#tag-unit').fill('g');await page.locator('#add-submit').click();
+  await page.locator('#add-dialog').waitFor({state:'hidden'});
+  const numeric=page.getByRole('button',{name:'记录一次：陆龟体重',exact:true});assert.match(await numeric.getAttribute('class'),/numeric-tag/);
+  await numeric.click();assert(await page.locator('#backfill-fields').isHidden());await page.locator('#record-submit').click();assert.equal((await data()).events.length,1);
+  await page.locator('#record-value').fill('125.5');await page.locator('#record-submit').click();await page.locator('#record-dialog').waitFor({state:'hidden'});
+  snapshot=await data();assert(snapshot.events.some(e=>e.value===125.5&&e.unit==='g'));pass('数值标签可选、同色系区分、空值阻止、数字保存');
+  await page.locator('#undo').click();await page.waitForFunction(()=>!document.querySelector('#page-home .recorded'));await numeric.focus();await numeric.press('Shift+F10');await page.locator('#record-date').fill('2026-10-01');await page.locator('#record-time').selectOption('10:00');await page.locator('#record-value').fill('120');await page.locator('#record-submit').click();await page.locator('#record-dialog').waitFor({state:'hidden'});
+  await page.waitForFunction(()=>!document.querySelector('#results .recorded'),{},{timeout:5000});
+  await numeric.focus();await numeric.press('Shift+F10');await page.locator('#record-date').fill('2026-10-02');await page.locator('#record-time').selectOption('23:00');await page.locator('#record-value').fill('123');await page.locator('#record-submit').click();await page.locator('#record-dialog').waitFor({state:'hidden'});
+  pass('数值标签长按补记、10点/23点、单位快照保存');
+  await go('stats');await page.locator('#chart-month').fill('2026-10');await page.locator('#chart-month').dispatchEvent('change');
+  await page.locator('#filter-results button').filter({hasText:'陆龟体重'}).click();await page.locator('#numeric-charts svg').waitFor();
+  assert.equal(await page.locator('#numeric-charts circle').count(),2);assert.equal(await page.locator('[data-needs-pair]:visible').count(),0);assert.equal(await page.locator('#dot-chart svg').count(),1);
+  await page.locator('#numeric-charts circle').first().click();assert.match(await page.locator('#numeric-charts .point-detail').innerText(),/120 g/);
+  await page.locator('#numeric-section').scrollIntoViewIfNeeded();await page.screenshot({path:'/private/tmp/suishouji-numeric.png'});pass('只选结果显示时间图、数值日期折线与点详情，隐藏双类图');
+  await page.locator('#filter-results button').filter({hasText:'陆龟体重'}).click();await page.locator('#filter-conditions button').filter({hasText:'喝了咖啡'}).click();await page.locator('#dot-chart svg').waitFor();
+  assert.equal(await page.locator('[data-needs-pair]:visible').count(),0);assert(await page.locator('#numeric-section').isHidden());pass('结果可取消，只选条件显示时间图');
+  await page.locator('#filter-results button').filter({hasText:'陆龟体重'}).click();await page.locator('.quadrant-grid').waitFor();assert.equal(await page.locator('[data-needs-pair]:visible').count(),2);pass('同时选条件和结果恢复四象限与时间段图');
+  await page.locator('#view-records').click();await page.locator('#records-search').fill('陆龟体重');await page.waitForFunction(()=>document.querySelectorAll('.record-card').length===2);
+  await page.locator('.record-card summary').first().click();page.once('dialog',d=>d.dismiss());await page.locator('.delete-record').first().click();assert.equal((await data()).events.length,3);
+  page.once('dialog',d=>d.accept());await page.locator('.delete-record').first().click();await page.waitForFunction(()=>document.querySelectorAll('.record-card').length===1);assert.equal((await data()).events.length,2);pass('删除指定记录与取消确认，其他记录保留');
+  await page.locator('#records-back').click();await page.waitForFunction(()=>document.querySelectorAll('#numeric-charts circle').length===1);assert.equal(await page.locator('#numeric-charts circle').count(),1);pass('删除后统计折线同步更新');
+  await go('home');await page.getByRole('button',{name:'添加实验条件标签',exact:true}).click();await page.locator('#tag-name').fill('饲料重量');await page.locator('#tag-type').selectOption('number');await page.locator('#tag-unit').fill('g');await page.locator('#tag-icons button[aria-label="陆龟"]').click();await page.screenshot({path:'/private/tmp/suishouji-form.png'});await page.locator('#add-submit').click();await page.locator('#add-dialog').waitFor({state:'hidden'});
+  await page.getByRole('button',{name:'记录一次：饲料重量',exact:true}).click();await page.locator('#record-value').fill('0');await page.locator('#record-submit').click();await page.locator('#record-dialog').waitFor({state:'hidden'});
+  assert.equal(await page.locator('#conditions .tag[aria-label="记录一次：饲料重量"] .tag-icon').count(),1);
+  await page.locator('#home-icons button[aria-label="陆龟"]').click();await page.waitForFunction(()=>document.querySelectorAll('#conditions .tag:not(.add):not(.home-expand)').length===1);assert.equal(await page.locator('#conditions .tag:not(.add):not(.home-expand)').count(),1);await page.locator('#home-icons button[aria-label="全部"]').click();pass('数值标签保留图标及分类筛选');
+  await go('stats');await page.locator('#filter-conditions button').filter({hasText:'喝了咖啡'}).click();await page.locator('#filter-results button').filter({hasText:'陆龟体重'}).click();await page.locator('#filter-conditions button').filter({hasText:'饲料重量'}).click();await page.waitForFunction(()=>document.querySelector('#numeric-charts h3')?.textContent.includes('饲料重量'));assert.equal(await page.locator('#numeric-charts circle').count(),1);assert.match(await page.locator('#numeric-charts circle').getAttribute('aria-label'),/0 g/);pass('仅数值条件的零值折线显示');
+  await go('home');await page.screenshot({path:'/private/tmp/suishouji-home.png'});
+  await page.evaluate(async()=>{await navigator.serviceWorker.ready;});await page.reload();await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
+  await context.setOffline(true);await page.reload();await numeric.waitFor();await numeric.click();await page.locator('#record-value').fill('130');await page.locator('#record-submit').click();await page.locator('#record-dialog').waitFor({state:'hidden'});assert((await data()).events.some(e=>e.value===130));pass('新版离线外壳加载及数值记录可用');
+  assert.deepEqual(errors,[]);pass('浏览器无运行错误');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1});

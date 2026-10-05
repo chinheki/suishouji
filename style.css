@@ -48,7 +48,24 @@ body{height:100vh;height:100dvh;overflow:hidden;display:grid;grid-template-rows:
 
 #home-search{width:100%;margin:0 0 30px;padding:13px 16px;border:1px solid #dce3d5;border-radius:14px;background:transparent;color:#354238;font-size:16px}.tag.home-expand{background:transparent;color:#788770;font-size:14px;border:1px solid #dce3d5}
 
+/* Numeric tags retain each group's hue; feedback survives tag reordering. */
+.tag.numeric-tag{background:#c6ddbb;color:#365c2e;border:1px solid #8fab80}
+.results .tag.numeric-tag{background:#d5c2e6;color:#624275;border:1px solid #b195c5}
+#page-stats .tag.numeric-tag{border:2px solid #8fab80}
+#page-stats .results .tag.numeric-tag{border-color:#b195c5}
+#page-home .tag:active,#page-home .tag.pressing,#page-home .tag.recorded{background:#50734b;color:#fff;opacity:1}
+#page-home .results .tag:active,#page-home .results .tag.pressing,#page-home .results .tag.recorded{background:#78578e;color:#fff}
+#page-home .tag{-webkit-touch-callout:none;user-select:none;transition:background .12s,color .12s}
+#tag-type,#record-time{display:block;width:100%;padding:12px;border:1px solid #dce3d5;border-radius:10px;background:#f9faf6;color:#52624b;font:inherit}
+#record-dialog input{width:100%;min-width:0}#record-dialog h2{overflow-wrap:anywhere;font-size:18px}
+#numeric-charts svg{width:100%;display:block}.numeric-chart{margin-top:24px}.numeric-chart h3{font-size:15px;font-weight:500}.numeric-line{fill:none;stroke:#688e56;stroke-width:2}.numeric-chart.result .numeric-line{stroke:#9670af}.numeric-point{fill:#688e56;stroke:#fff;stroke-width:2;cursor:pointer}.numeric-chart.result .numeric-point{fill:#9670af}.numeric-point:focus{outline:none;stroke:#283d29;stroke-width:3}
+
 .tag-icon{width:24px;height:24px;object-fit:contain;vertical-align:middle;flex-shrink:0;margin-right:7px}.icon-choices{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}.icon-choice{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-width:48px;min-height:56px;padding:8px;border:1px solid transparent;border-radius:12px;background:transparent;color:#788770;font-size:11px}.icon-choice .tag-icon{margin:0;width:28px;height:28px}.icon-choice[aria-pressed=true]{background:#e5eddf;border-color:#a8b99e;color:#354238}.icon-field{border:0;padding:0;margin:22px 0 0}.icon-field legend{font-size:14px;margin-bottom:12px}
 
 /* Use the SVG silhouette with the surrounding text color. */
 .tag-icon{display:inline-block;background-color:currentColor;-webkit-mask:var(--icon-url) center/contain no-repeat;mask:var(--icon-url) center/contain no-repeat}
+
+/* Center icons against the full text block, including wrapped labels. */
+.tag,.manage-row .edit-tag{display:inline-flex;align-items:center;gap:4px}.tag{justify-content:center}.tag>.tag-icon,.edit-tag>.tag-icon{margin-right:0}.tag-label{min-width:0;overflow-wrap:anywhere}
+
+.offset-controls select,.offset-controls input{margin-top:0;min-height:36px;font:inherit}

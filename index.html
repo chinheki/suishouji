@@ -8,14 +8,14 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=34">
+  <link rel="stylesheet" href="./style.css?v=35">
   <title>随手记</title>
 </head>
 <body>
   <main class="app">
     <aside id="demo-banner" class="demo-banner" hidden>模拟数据 · 9月1日—29日<a href="./">返回真实记录</a></aside>
     <div id="page-home" class="page">
-    <header><h1>随手记<span class="title-dot" aria-hidden="true"></span></h1><p>点一下，记一次</p></header>
+    <header><h1>随手记<span class="title-dot" aria-hidden="true"></span></h1><p>点一下记录 · 长按补记</p></header>
     <div id="home-icons" class="icon-choices" role="group" aria-label="按图标筛选标签"></div>
     <input id="home-search" type="search" aria-label="搜索标签" placeholder="搜索标签" autocomplete="off">
     <section aria-labelledby="conditions-title"><h2 id="conditions-title">实验条件</h2><div id="conditions" class="tags" aria-busy="true"></div></section>
@@ -24,9 +24,9 @@
     <div id="page-stats" class="page" hidden>
       <header><h1>统计</h1><p>把发生的事，放在一起看</p></header>
       <section><h2>实验条件 <small>可多选</small></h2><div id="filter-conditions" class="tags"></div></section>
-      <section><h2>实验结果 <small>选一个</small></h2><div id="filter-results" class="tags results"></div></section>
-      <section class="stats-settings"><h2>统计设置 <small>适用于下方所有图表</small></h2><div class="chart-heading"><label class="period-label">周期<select id="timeline-unit"><option value="day">每天</option><option value="week">每周</option><option value="month">每月</option></select></label><label class="period-label">月份<input type="month" id="chart-month" aria-label="统计月份"></label><button id="all-time" class="quiet-button" type="button" aria-pressed="false">全部</button></div><div class="offset-controls"><span>结果对照条件</span><label>方向<select id="offset-direction"><option value="0">同一周期</option><option value="1">前</option><option value="-1">后</option></select></label><label>周期数<input id="offset-count" type="number" min="1" max="365" step="1" value="1" disabled></label><span>个周期</span></div><p id="offset-help" class="chart-help"></p></section><section class="chart-section"><h2>周期对照</h2><p class="chart-help">每列以结果周期为准，条件按偏移对齐；左右滑动查看日期。</p><div id="dot-chart"></div><p id="point-detail" class="point-detail" role="status">点选圆点，查看具体时间。</p></section>
-      <section class="scatter-section">
+      <section><h2>实验结果 <small>选一个，可取消</small></h2><div id="filter-results" class="tags results"></div></section>
+      <section class="stats-settings"><h2>统计设置 <small>适用于下方所有图表</small></h2><div class="chart-heading"><label class="period-label">周期<select id="timeline-unit"><option value="day">每天</option><option value="week">每周</option><option value="month">每月</option></select></label><label class="period-label">月份<input type="month" id="chart-month" aria-label="统计月份"></label><button id="all-time" class="quiet-button" type="button" aria-pressed="false">全部</button></div><div class="offset-controls"><span>结果对照条件</span><select id="offset-direction" aria-label="对照方向"><option value="0">同一周期</option><option value="1">前</option><option value="-1">后</option></select><input aria-label="偏移周期数" id="offset-count" type="number" min="1" max="365" step="1" value="1" disabled><span>个周期</span></div><p id="offset-help" class="chart-help"></p></section><section class="chart-section"><h2>周期对照</h2><p class="chart-help">每列以结果周期为准，条件按偏移对齐；左右滑动查看日期。</p><div id="dot-chart"></div><p id="point-detail" class="point-detail" role="status">点选圆点，查看具体时间。</p></section>
+      <section class="scatter-section" data-needs-pair hidden>
         <h2>看看关联 <small id="association-kind">散点图</small></h2>
         <p id="association-help" class="chart-help">横轴看条件，纵轴看结果；每个点代表一个周期。</p>
         <div class="scatter-controls">
@@ -38,7 +38,8 @@
         <p id="scatter-detail" class="point-detail" role="status"></p>
         <p id="scatter-note" class="chart-help"></p>
       </section>
-      <section class="scatter-section"><h2>看看关联 <small>时间段</small></h2><label class="period-label">实验条件 · 单选<select id="time-condition"></select></label><p class="chart-help">按每条条件记录的实际时刻，对照结果已记录与未记录；共用上方的周期与偏移。</p><div id="time-chart"></div><p id="time-detail" class="point-detail" role="status"></p><p class="chart-help">纵轴按本地时间精确到分钟，同周期多次记录分别绘制。未记录不等于未发生，关联不代表因果。</p></section>
+      <section class="scatter-section" data-needs-pair hidden><h2>看看关联 <small>时间段</small></h2><label class="period-label">实验条件 · 单选<select id="time-condition"></select></label><p class="chart-help">按每条条件记录的实际时刻，对照结果已记录与未记录；共用上方的周期与偏移。</p><div id="time-chart"></div><p id="time-detail" class="point-detail" role="status"></p><p class="chart-help">纵轴按本地时间精确到分钟，同周期多次记录分别绘制。未记录不等于未发生，关联不代表因果。</p></section>
+      <section id="numeric-section" hidden><h2>数值趋势</h2><p class="chart-help">横轴为实际日期，纵轴为数值。每个点是一条记录，不按周期合并，也不使用条件偏移。</p><div id="numeric-charts"></div></section>
       <button id="view-records" class="records-entry" type="button">查看全部记录 <span>→</span></button>
     </div>
     <div id="page-records" class="page" hidden>
@@ -56,7 +57,7 @@
       <p class="settings-help">点击标签所在行修改；删除后首页不再显示，历史记录保留。</p>
       <section><h2>实验条件</h2><div id="manage-conditions"></div></section>
       <section><h2>实验结果</h2><div id="manage-results"></div></section>
-      <section><h2>应用更新 <small>v34</small></h2><button id="check-update" class="quiet-button" type="button">检查更新</button><button id="apply-update" class="quiet-button" type="button" hidden>更新并重启</button><p id="update-status" class="chart-help" role="status">联网后可检查新版本，更新不会删除本机记录。</p></section>
+      <section><h2>应用更新 <small>v35</small></h2><button id="check-update" class="quiet-button" type="button">检查更新</button><button id="apply-update" class="quiet-button" type="button" hidden>更新并重启</button><p id="update-status" class="chart-help" role="status">联网后可检查新版本，更新不会删除本机记录。</p></section>
       <section><h2>数据备份</h2><p class="chart-help">导出当前浏览器的全部标签和记录，包含已删除标签。请将文件保存到“文件”App 或其他安全位置。</p><button id="export-backup" class="quiet-button" type="button">导出备份</button><p id="backup-status" class="chart-help" role="status"></p><a id="backup-download" hidden>保存备份文件</a><button id="backup-share" class="quiet-button" type="button" hidden>分享／存储到文件</button><label class="import-label">导入备份<input id="import-file" type="file" accept=".json,application/json"></label><p id="import-status" class="chart-help" role="status"></p><button id="import-confirm" class="quiet-button" type="button" hidden>确认覆盖当前数据</button></section>
       <details id="archived-section"><summary>已删除的标签 <span id="archived-count"></span></summary><div id="archived-tags"></div></details>
     </div>
@@ -75,10 +76,18 @@
       <label for="tag-name">标签名称</label>
       <input id="tag-name" name="name" maxlength="24" placeholder="例如：喝了咖啡" autocomplete="off" required>
       <fieldset class="icon-field"><legend>分类图标（选填）</legend><div id="tag-icons" class="icon-choices"></div></fieldset>
+      <label for="tag-type">记录类型</label><select id="tag-type"><option value="event">普通标签 · 点一下记录</option><option value="number">数值标签 · 输入数字</option></select>
+      <label id="tag-unit-wrap" hidden>单位（可选）<input id="tag-unit" maxlength="16" placeholder="例如：g、kg、℃"></label>
       <p id="form-error" class="form-error" role="alert"></p>
       <button id="add-submit" class="submit" type="submit" disabled>添加标签</button>
     </form>
   </dialog>
-  <script type="module" src="./app.js?v=34"></script>
+  <dialog id="record-dialog"><form id="record-form">
+    <div class="dialog-heading"><h2 id="record-title">补记</h2><button type="button" id="record-close" class="close" aria-label="关闭记录">×</button></div>
+    <div id="backfill-fields"><label>日期<input id="record-date" type="date" required></label><label>时段<select id="record-time"><option value="10:00">早上 10:00</option><option value="18:00">下午 18:00</option><option value="23:00">晚上 23:00</option></select></label></div>
+    <label id="record-value-wrap">数值 <span id="record-unit"></span><input id="record-value" type="number" step="any" inputmode="decimal" placeholder="请输入数字"></label>
+    <p id="record-error" class="form-error" role="alert"></p><button id="record-submit" class="submit" type="submit">保存记录</button>
+  </form></dialog>
+  <script type="module" src="./app.js?v=35"></script>
 </body>
 </html>

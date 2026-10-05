@@ -1,23 +1,42 @@
-<!doctype html><meta charset="utf-8"><title>记录兼容验证</title><pre id="results">运行中</pre><script type="module">
-import {openDatabase,recordOnce} from '../storage.js?v=25';
-const name='suishouji-test-'+crypto.randomUUID(),lines=[];let db;
+<!doctype html><meta charset="utf-8"><title>记录与数值兼容验证</title><pre id="results">运行中</pre><script type="module">
+import {openDatabase,recordOnce,exportBackup,importBackup,backfillTime} from '../storage.js?v=35';
+const name='suishouji-test-'+crypto.randomUUID(),lines=[];let db,other;
 const assert=(v,s)=>{if(!v)throw Error(s);lines.push('PASS '+s)};
 const write=(store,op)=>new Promise((res,rej)=>{const tx=db.transaction(store,'readwrite');op(tx.objectStore(store));tx.oncomplete=res;tx.onabort=()=>rej(tx.error)});
-const count=()=>new Promise(res=>{const r=db.transaction('events').objectStore('events').count();r.onsuccess=()=>res(r.result)});
-const event=(tagId)=>({id:crypto.randomUUID(),tagId,occurredAt:'2026-10-01T10:00:00.000Z'});
+const now=Date.parse('2026-10-05T15:00:00Z');
+const event=(tagId,extra={})=>({id:crypto.randomUUID(),tagId,occurredAt:'2026-10-01T10:00:00.000Z',...extra});
 try{
- db=await openDatabase(name);
+ db=await openDatabase(name);other=await openDatabase(name);
  for(const cycleDays of [null,1,7,30,3,-1]){
- const id=String(cycleDays);await write('tags',s=>s.add({id,name:id,group:'conditions',cycleDays}));
- const results=await Promise.all([recordOnce(db,event(id)),recordOnce(db,event(id))]);
- assert(results.every(r=>r.status==='saved'),'旧周期 '+id+' 同一时刻并发两条均保存');
+   const id=String(cycleDays);await write('tags',s=>s.add({id,name:id,group:'conditions',cycleDays}));
+   assert((await recordOnce(db,event(id),now)).status==='saved','旧周期 '+id+' 首次保存');
+   assert((await recordOnce(db,event(id),now+2999)).status==='cooldown','旧周期 '+id+' 3秒内拦截');
+   assert((await recordOnce(db,event(id),now+3000)).status==='saved','旧周期 '+id+' 恰好3秒可再记，不恢复旧周期限制');
  }
- const e=event('1');await recordOnce(db,e);const before=await count();await write('events',s=>s.delete(e.id));assert(await count()===before-1,'撤销仅删除该次记录');
- assert((await recordOnce(db,event('1'))).status==='saved','撤销后可重记');
- await write('tags',s=>s.put({id:'1',name:'1',group:'conditions',archived:true}));assert((await recordOnce(db,event('1'))).status==='unavailable','已归档标签仍禁止记录');
- assert((await recordOnce(db,event('missing'))).status==='unavailable','不存在标签禁止记录');
- const duplicate=event('7');await recordOnce(db,duplicate);let rejected=false;try{await recordOnce(db,duplicate)}catch{rejected=true}assert(rejected,'同一事件ID不可重复写入');
+ await write('tags',s=>s.add({id:'race',name:'并发',group:'results'}));
+ const race=await Promise.all([recordOnce(db,event('race'),now),recordOnce(other,event('race'),now)]);
+ assert(race.filter(r=>r.status==='saved').length===1&&race.some(r=>r.status==='cooldown'),'双连接事务防重复');
+ const saved=race.find(r=>r.status==='saved').event;await write('events',s=>s.delete(saved.id));
+ assert((await recordOnce(db,event('race'),now+1)).status==='saved','撤销后立即重记');
+ await write('tags',s=>s.add({id:'n',name:'陆龟体重',group:'results',valueType:'number',unit:'g'}));
+ for(const value of [undefined,'5',NaN,Infinity])assert((await recordOnce(db,event('n',{value}),now)).status==='invalid','数值无效时不写入 '+String(value));
+ const n=await recordOnce(db,event('n',{value:0,backfilled:true}),now);
+ assert(n.status==='saved'&&n.event.value===0&&n.event.unit==='g'&&n.event.recordedAt===now,'零数值与单位快照、补记保存时间');
+ assert((await recordOnce(db,event('n',{value:12.5,occurredAt:'2026-09-01T00:00:00Z'}),now+10)).status==='cooldown','补记使用保存时间防重复');
+ assert((await recordOnce(db,event('n',{value:-12.5}),now+3000)).status==='saved','负数和小数支持');
+ await write('tags',s=>s.put({id:'n',name:'体重改名',group:'results',valueType:'number',unit:'kg'}));
+ const before=await exportBackup(db);assert(before.events.find(e=>e.id===n.event.id).unit==='g','修改单位不篡改历史');
+ assert((await recordOnce(db,event('n',{value:1.2,unit:'g'}),now+6000)).status==='invalid','单位变化后的旧输入拒绝，防止误存');
+ const next=await recordOnce(db,event('n',{value:1.2}),now+6000);assert(next.event.unit==='kg','新记录使用新单位');
+ await importBackup(db,await exportBackup(db));assert((await exportBackup(db)).events.some(e=>e.value===0),'数值备份往返保留零值');
+ const bad=await exportBackup(db);bad.events[0].value='bad';let rejected=false;try{await importBackup(db,bad)}catch{rejected=true}assert(rejected,'无效数值备份拒绝');
+ await write('tags',s=>s.put({id:'n',name:'体重改名',group:'results',archived:true}));assert((await recordOnce(db,event('n'),now+9000)).status==='unavailable','归档标签禁止写入');
+ assert((await recordOnce(db,event('missing'),now)).status==='unavailable','不存在标签禁止写入');
+ for(const time of ['10:00','18:00','23:00']){const d=backfillTime('2026-10-01',time,now);assert(d.getHours()===Number(time.slice(0,2))&&d.getMinutes()===0,'本地补记固定时段 '+time);}
+ for(const [date,time] of [['2026-02-30','10:00'],['2026-10-01','12:00'],['2099-01-01','10:00']]){let failed=false;try{backfillTime(date,time,now)}catch{failed=true}assert(failed,'拒绝无效补记 '+date+' '+time);}
+ const legacy={id:'legacy',tagId:'race',tagName:'历史',occurredAt:'2020-01-01T00:00:00Z',cycleDays:7};await write('events',s=>s.add(legacy));
+ assert(JSON.stringify((await exportBackup(db)).events.find(e=>e.id==='legacy'))===JSON.stringify(legacy),'旧事件原样保留');
  document.getElementById('results').textContent=lines.join('\n');
 }catch(e){document.getElementById('results').textContent=lines.join('\n')+'\nFAIL '+e;}
-finally{db?.close();indexedDB.deleteDatabase(name)}
+finally{db?.close();other?.close();indexedDB.deleteDatabase(name)}
 </script>

@@ -1,6 +1,7 @@
-import { periodStart, shiftPeriod } from './scatter.js?v=34';
-import { renderScatter } from './scatter-ui.js?v=34';
-import { openDatabase, recordOnce, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=34';
+import { periodStart, shiftPeriod } from './scatter.js?v=35';
+import { renderScatter } from './scatter-ui.js?v=35';
+import { openDatabase, recordOnce, backfillTime, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=35';
+import { renderNumericCharts } from './numeric-ui.js?v=35';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -33,7 +34,7 @@ function iconImage(key){
   if(!iconNames[key])return null;
   const img=document.createElement('span');img.className='tag-icon';img.style.setProperty('--icon-url',`url("./icons/${key}.svg")`);img.setAttribute('role','img');img.setAttribute('aria-label',iconNames[key]);return img;
 }
-function prependIcon(node,key){const img=iconImage(key);if(img)node.prepend(img);}
+function prependIcon(node,key){const img=iconImage(key);if(!img)return;const text=document.createElement('span');text.className='tag-label';text.textContent=node.textContent;node.replaceChildren(img,text);}
 function renderIconChoices(container,value,onSelect,filter=false){
   container.replaceChildren();
   for(const [key,name] of [['',filter?'全部':'无图标'],...Object.entries(iconNames),...(filter?[['none','未分类']]:[])]){
@@ -62,6 +63,7 @@ async function renderTags() {
   if(revision!==homeRenderRevision)return;
   const lastUsed=new Map();
   for(const event of events){const time=Date.parse(event.occurredAt);if(time>(lastUsed.get(event.tagId)||0))lastUsed.set(event.tagId,time);}
+  for(const e of events)if(Number.isFinite(e.recordedAt)&&e.recordedAt+3000>Date.now())cooldowns.set(e.tagId,Math.max(cooldowns.get(e.tagId)||0,e.recordedAt+3000));
   const query=searchKey($('home-search').value);
   for (const group of groups) {
     const container = $(group);
@@ -72,11 +74,13 @@ async function renderTags() {
     const visible=query||homeExpanded[group]?matching:matching.slice(0,limit);
     visible.forEach((tag) => {
       const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'tag';
-      button.textContent = tag.name; prependIcon(button,tag.icon);
+      button.type = 'button';button.dataset.tagId=tag.id;
+      button.className = 'tag' + (tag.valueType === 'number' ? ' numeric-tag' : '');
+      button.textContent = tag.name + (tag.valueType === 'number' ? ` · ${tag.unit || '数值'}` : '');
+      prependIcon(button,tag.icon);
       button.setAttribute('aria-label', `记录一次：${tag.name}`);
-      button.addEventListener('click', () => recordEvent(tag, button));
+      bindRecordButton(tag, button);
+      applyCooldown(tag, button);
       container.append(button);
     });
     if(!matching.length&&(query||homeIcon)){const empty=document.createElement('p');empty.className='empty';empty.textContent='没有匹配的标签';container.append(empty);}
@@ -99,6 +103,8 @@ function openTagDialog(group, tag = null) {
   editingTag = tag; activeGroup = group; selectedIcon=iconNames[tag?.icon]?tag.icon:'';renderTagIcons();
   $('dialog-title').textContent = `${tag ? '修改' : '添加'}${group === 'conditions' ? '实验条件' : '实验结果'}`;
   $('add-submit').textContent = tag ? '保存修改' : '添加标签';
+  $('tag-type').value = tag?.valueType || 'event'; $('tag-unit').value = tag?.unit || '';
+  $('tag-unit-wrap').hidden = $('tag-type').value !== 'number';
   $('tag-name').value = tag?.name || ''; $('form-error').textContent = '';
   $('tag-name').placeholder = group === 'conditions' ? '例如：喝了茶' : '例如：心情很好';
   $('add-submit').disabled = true;
@@ -111,29 +117,86 @@ async function requestPersistence() {
   } catch { /* Persistence is optional; records remain in IndexedDB. */ }
 }
 let persistenceRequested = false;
-async function recordEvent(tag, button) {
-  // Capture the tap time, rather than the time the database finishes writing.
-  const event = { id: crypto.randomUUID(), tagId: tag.id, tagName: tag.name, group: tag.group,
-    occurredAt: new Date().toISOString(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    utcOffsetMinutes: -new Date().getTimezoneOffset() };
-  button.disabled = true;
-  try {
-    const outcome = await recordOnce(db, event);
-    if (outcome.status !== 'saved') {
-      showError('这个标签已删除，请刷新首页。');
-      return;
+const cooldowns = new Map(), pendingTags = new Set();
+function applyCooldown(tag, button) {
+  const until = cooldowns.get(tag.id) || 0;
+  const cooling = until > Date.now();
+  button.disabled = cooling || pendingTags.has(tag.id);
+  button.classList.toggle('recorded', cooling);
+  if (cooling) {
+    button.textContent = `✓ ${tag.name} · 已记录`;prependIcon(button,tag.icon);
+    setTimeout(() => { if (button.isConnected) void renderTags().catch(()=>{}); }, Math.max(1, until-Date.now()+10));
+  }
+}
+function bindRecordButton(tag, button) {
+  let timer, held=false, origin;
+  const cancel = () => { clearTimeout(timer); button.classList.remove('pressing'); };
+  button.addEventListener('pointerdown', e => {
+    if (button.disabled || e.button !== 0) return;
+    held=false; origin={x:e.clientX,y:e.clientY};button.classList.add('pressing');
+    timer=setTimeout(()=>{held=true;button.classList.remove('pressing');openRecordDialog(tag,true);},550);
+  });
+  button.addEventListener('pointermove',e=>{if(origin && Math.hypot(e.clientX-origin.x,e.clientY-origin.y)>10)cancel();});
+  for(const type of ['pointerup','pointercancel','pointerleave'])button.addEventListener(type,cancel);
+  button.addEventListener('contextmenu',e=>e.preventDefault());
+  button.addEventListener('keydown',e=>{if(e.key==='F10' && e.shiftKey){e.preventDefault();openRecordDialog(tag,true);}});
+  button.addEventListener('click',()=>{
+    cancel();if(held){held=false;return;}
+    if(tag.valueType==='number')openRecordDialog(tag,false);else void recordEvent(tag);
+  });
+  button.title='点按记录；长按补记（键盘 Shift+F10）';
+}
+let recordDraft=null,recordSaving=false;
+function openRecordDialog(tag, backfill) {
+  if(pendingTags.has(tag.id)||(cooldowns.get(tag.id)||0)>Date.now())return;
+  recordDraft={tag,backfill};
+  const now=new Date(), localDate=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  $('record-title').textContent=(backfill?'补记 · ':'记录 · ')+tag.name;
+  $('backfill-fields').hidden=!backfill;$('record-date').disabled=!backfill;
+  $('record-date').value=localDate;$('record-date').max=localDate;
+  $('record-time').value=now.getHours()>=23?'23:00':now.getHours()>=18?'18:00':'10:00';
+  $('record-value-wrap').hidden=tag.valueType!=='number';$('record-value').disabled=tag.valueType!=='number';$('record-value').required=tag.valueType==='number';
+  $('record-value').value='';$('record-unit').textContent=tag.unit||'';$('record-error').textContent='';
+  $('record-submit').disabled=false;$('record-dialog').showModal();
+  if(tag.valueType==='number')$('record-value').focus();else $('record-date').focus();
+}
+$('record-close').addEventListener('click',()=>{if(!recordSaving)$('record-dialog').close();});
+$('record-dialog').addEventListener('cancel',e=>{if(recordSaving)e.preventDefault();});
+$('record-form').addEventListener('submit',async e=>{
+  e.preventDefault();if(recordSaving||!recordDraft)return;
+  recordSaving=true;$('record-submit').disabled=true;$('record-error').textContent='';
+  try{
+    const {tag,backfill}=recordDraft;
+    const date=backfill?backfillTime($('record-date').value,$('record-time').value):new Date();
+    const raw=$('record-value').value;
+    if(tag.valueType==='number' && (!raw.trim()||!Number.isFinite(Number(raw))))throw Error('请输入有效数字');
+    if(await recordEvent(tag,date,tag.valueType==='number'?Number(raw):undefined,backfill))$('record-dialog').close();
+    else $('record-error').textContent=$('error').textContent;
+  }catch(error){$('record-error').textContent=error.message;}
+  finally{recordSaving=false;$('record-submit').disabled=false;}
+});
+async function recordEvent(tag, date=new Date(), value, backfilled=false) {
+  if(pendingTags.has(tag.id)||(cooldowns.get(tag.id)||0)>Date.now())return false;
+  pendingTags.add(tag.id);
+  document.querySelectorAll('#conditions .tag, #results .tag').forEach(button=>{if(button.dataset.tagId===tag.id)button.disabled=true;});
+  const event={id:crypto.randomUUID(),tagId:tag.id,occurredAt:date.toISOString(),
+    timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,utcOffsetMinutes:-date.getTimezoneOffset(),backfilled,valueType:tag.valueType||'event',unit:tag.unit||''};
+  if(value!==undefined)event.value=value;
+  try{
+    const outcome=await recordOnce(db,event);
+    if(outcome.status!=='saved'){
+      if(outcome.status==='cooldown'){cooldowns.set(tag.id,outcome.until);showError('刚刚已记录，请等待 3 秒后再试。');}
+      else showError(outcome.message||'这个标签已删除，请刷新首页。');
+      return false;
     }
-    clearError(); lastEvent = event;
-    button.classList.add('recorded');
-    setTimeout(() => button.classList.remove('recorded'), 650);
-    const time = new Date(event.occurredAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-    $('toast-text').textContent = `已记录 ${tag.name} · ${time}`;
-    $('undo').hidden = false; $('toast').hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6500);
-    if(currentPage==='home')void renderTags().catch(()=>{});
-    if (!persistenceRequested) { persistenceRequested = true; void requestPersistence(); }
-  } catch { showError('这次没有保存成功，请再点一次。若本机空间已满，请先释放空间。'); }
-  finally { button.disabled = false; }
+    cooldowns.set(tag.id,outcome.until);clearError();lastEvent=outcome.event;
+    const time=date.toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
+    $('toast-text').textContent=`已${backfilled?'补记':'记录'} ${tag.name}${value!==undefined?' · '+value+' '+(tag.unit||''):''} · ${time}`;
+    $('undo').hidden=false;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{$('toast').hidden=true;},6500);
+    if(!persistenceRequested){persistenceRequested=true;void requestPersistence();}
+    return true;
+  }catch{showError('这次没有保存成功，请重试。');return false;}
+  finally{pendingTags.delete(tag.id);if(currentPage==='home')await renderTags().catch(()=>{});}
 }
 
 $('undo').addEventListener('click', async () => {
@@ -142,6 +205,7 @@ $('undo').addEventListener('click', async () => {
   $('undo').disabled = true;
   try {
     await transaction('events', 'readwrite', (store) => store.delete(target.id));
+    cooldowns.delete(target.tagId);
     if (lastEvent?.id === target.id) {
       lastEvent = null; $('toast-text').textContent = `已撤销 ${target.tagName}`; $('undo').hidden = true;
       clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 2200);
@@ -171,6 +235,7 @@ async function validateTagForm() {
     $('add-submit').disabled = false; return true;
   } catch { if (revision === formRevision) $('form-error').textContent = '暂时无法检查名称，请重新输入后重试。'; return false; }
 }
+$('tag-type').addEventListener('change',()=>{$('tag-unit-wrap').hidden=$('tag-type').value!=='number';});
 $('tag-name').addEventListener('input', () => void validateTagForm());
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -180,7 +245,7 @@ $('add-form').addEventListener('submit', async (event) => {
   try {
     const updated = {
       ...(editingTag || { id: crypto.randomUUID(), group: activeGroup, order: Date.now(), createdAt: new Date().toISOString() }),
-      name, icon:selectedIcon,
+      name, icon:selectedIcon, valueType:$('tag-type').value, unit:$('tag-type').value==='number'?$('tag-unit').value.trim():'',
       updatedAt: new Date().toISOString(),
     };
     await transaction('tags', 'readwrite', (store) => editingTag ? store.put(updated) : store.add(updated));
@@ -199,7 +264,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=34');
+    const { seedDemo } = await import('./demo.js?v=35');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -254,9 +319,18 @@ async function renderRecords() {
     const tag=map.get(event.tagId),name=event.tagName||tag?.name||'未知标签';
     const card=document.createElement('details');card.className='record-card';
     const summary=document.createElement('summary'),title=document.createElement('strong'),time=document.createElement('time');
-    title.textContent=name;time.dateTime=event.occurredAt;time.textContent=new Date(event.occurredAt).toLocaleString('zh-CN',{hour12:false});summary.append(title,time);
+    title.textContent=name+(typeof event.value==='number'?` · ${event.value} ${event.unit||''}`:'');time.dateTime=event.occurredAt;time.textContent=new Date(event.occurredAt).toLocaleString('zh-CN',{hour12:false});summary.append(title,time);
     const info=document.createElement('p');info.textContent=`${(event.group||tag?.group)==='conditions'?'实验条件':'实验结果'} · ${event.cycleDays?'记录时周期：'+event.cycleDays+' 天':'记录时未设周期'}${tag?.archived?' · 标签已删除':''}${tag&&tag.name!==name?' · 当前名称：'+tag.name:''}`;
-    card.append(summary,info);container.append(card);
+    const remove=document.createElement('button');remove.type='button';remove.className='quiet-button delete-record';remove.textContent='删除这条记录';
+    remove.addEventListener('click',async()=>{
+      if(!confirm(`删除「${name}」在 ${time.textContent} 的这条记录？`))return;
+      remove.disabled=true;
+      try{await transaction('events','readwrite',s=>s.delete(event.id));cooldowns.delete(event.tagId);
+        if(lastEvent?.id===event.id){lastEvent=null;$('toast').hidden=true;}
+        await renderRecords();clearError();
+      }catch{showError('删除失败，请重试。');remove.disabled=false;}
+    });
+    card.append(summary,info,remove);container.append(card);
   }
   if(!rows.length)container.append(empty('没有符合筛选条件的记录。'));
   $('records-more').hidden=rows.length<=recordLimit;
@@ -275,7 +349,7 @@ async function renderSettings() {
     const label = document.createElement('button'); label.type = 'button'; label.className = 'edit-tag';
     label.setAttribute('aria-label', `修改标签：${tag.name}`);
     label.addEventListener('click', () => openTagDialog(tag.group, tag));
-    label.textContent = tag.name; prependIcon(label,tag.icon);
+    label.textContent = tag.name+(tag.valueType==='number'?` · ${tag.unit||'数值'}`:''); prependIcon(label,tag.icon);
     const button = document.createElement('button'); button.type = 'button';
     button.textContent = tag.archived ? '恢复' : '删除';
     button.className = tag.archived ? 'restore' : '';
@@ -319,12 +393,14 @@ async function renderStats() {
     const container = $('filter-' + group); container.replaceChildren();
     tags.filter((tag) => tag.group === group).forEach((tag) => {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'tag';
-      button.textContent = tag.name + (tag.archived ? ' · 已删除' : ''); prependIcon(button,tag.icon);
+      button.classList.toggle('numeric-tag',tag.valueType==='number');
+      button.textContent = tag.name + (tag.valueType==='number'?` · ${tag.unit||'数值'}`:'') + (tag.archived ? ' · 已删除' : '');
+      prependIcon(button,tag.icon);
       button.setAttribute('aria-pressed', String(group === 'conditions' ? selectedConditions.has(tag.id) : selectedResult === tag.id));
       button.addEventListener('click', () => {
         if (group === 'conditions') {
           if (selectedConditions.has(tag.id)) selectedConditions.delete(tag.id); else selectedConditions.add(tag.id);
-        } else selectedResult = tag.id;
+        } else selectedResult = selectedResult === tag.id ? null : tag.id;
         void renderStats().catch(() => showError('统计读取失败，请重试。'));
       });
       container.append(button);
@@ -334,8 +410,11 @@ async function renderStats() {
   const chart = $('dot-chart'); chart.replaceChildren();
   renderScatter(tags, events, selectedConditions, null, NaN, NaN);
   $('point-detail').textContent = '点选圆点，查看具体时间。';
-  if (!selectedConditions.size || !selectedResult) {
-    chart.append(empty('选几个条件标签，再选一个结果，就能看发生时间。')); return;
+  $('numeric-charts').replaceChildren();$('numeric-section').hidden=true;
+  const paired=!!selectedConditions.size && !!selectedResult;
+  document.querySelectorAll('[data-needs-pair]').forEach(section=>section.hidden=!paired);
+  if (!selectedConditions.size && !selectedResult) {
+    chart.append(empty('选择至少一个条件或结果标签，即可查看时间关联。')); return;
   }
   const chosen = tags.filter((tag) => selectedConditions.has(tag.id) && tag.group === 'conditions');
   const result = tags.find((tag) => tag.id === selectedResult);
@@ -358,9 +437,10 @@ async function renderStats() {
   const inRange = valid.filter((event) => Date.parse(event.occurredAt) >= start && Date.parse(event.occurredAt) < end);
   if (!inRange.length) chart.append(empty('这个时间范围还没有记录。'));
   const unit=$('timeline-unit').value;
-  const lag=Number($('offset-direction').value)*Number($('offset-count').value);
+  const lag=paired?Number($('offset-direction').value)*Number($('offset-count').value):0;
   const offsetLabel=lag?`${lag>0?'前':'后'} ${Math.abs(lag)} ${ {day:'天',week:'周',month:'个月'}[unit]}`:'同一周期';
-  $('offset-help').textContent=`结果保持原日期，条件取自${offsetLabel}；所有统计图共用周期和偏移。`;
+  $('offset-help').textContent=paired?`结果保持原日期，条件取自${offsetLabel}；数值趋势始终使用实际日期。`:'仅选择一类标签：按实际日期显示，不使用条件偏移。';
+  renderNumericCharts(chosen,events,start,end);
 
   const periods=[];
   for(let t=periodStart(start,unit,0);t<end;t=shiftPeriod(t,unit,1)) periods.push(t);
@@ -407,8 +487,8 @@ async function renderStats() {
     }
   }
   chart.append(svg);
-  $('point-detail').textContent='淡紫色列表示结果有记录的周期。点任意圆点，沿竖线查看该周期的全部标签；小灰点表示未记录。';
-  renderScatter(tags, events, selectedConditions, result, start, end);
+  $('point-detail').textContent=(result?'淡紫色列表示结果有记录的周期。':'')+'点任意圆点查看该周期的标签；小灰点表示未记录。';
+  if(paired)renderScatter(tags, events, selectedConditions, result, start, end);
 }
 $('timeline-unit').addEventListener('change',()=>{
   void renderStats().catch(()=>showError('统计读取失败，请重试。'));
@@ -453,7 +533,7 @@ $('backup-share').addEventListener('click',async()=>{
   catch(error){if(error.name!=='AbortError')$('backup-status').textContent='分享未完成，请使用“保存备份文件”。';}
 });
 
-const APP_VERSION='34';
+const APP_VERSION='35';
 let availableVersion=null;
 $('check-update').addEventListener('click',async()=>{
   const button=$('check-update');button.disabled=true;$('apply-update').hidden=true;
@@ -500,7 +580,7 @@ $('import-confirm').addEventListener('click',async()=>{
   try{
     const result=await importBackup(db,pendingBackup);pendingBackup=null;
     $('import-status').textContent=`覆盖完成：${result.tags} 个标签、${result.events} 条记录。`;
-    $('import-confirm').hidden=true;$('import-file').value='';lastEvent=null;$('toast').hidden=true;selectedConditions.clear();selectedResult=null;await renderSettings();
+    $('import-confirm').hidden=true;$('import-file').value='';lastEvent=null;cooldowns.clear();$('toast').hidden=true;selectedConditions.clear();selectedResult=null;await renderSettings();
   }catch(error){$('import-status').textContent=error.message||'导入失败，原数据未修改。';}
   finally{$('import-confirm').disabled=false;$('import-file').disabled=false;}
 });

@@ -26,8 +26,19 @@ export function openDatabase(name = 'suishouji', initialTags = [], onBlocked = (
   });
 }
 
-// The lookup and insert share one read/write transaction, including across tabs.
-export function recordOnce(database, event) {
+export const COOLDOWN_MS = 3000;
+export function backfillTime(date, time, now = Date.now()) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !['10:00','18:00','23:00'].includes(time)) throw new Error('请选择日期和固定时段');
+  const value = new Date(date + 'T' + time + ':00');
+  const [y,m,d] = date.split('-').map(Number);
+  if (!Number.isFinite(value.getTime()) || value.getFullYear() !== y || value.getMonth() !== m-1 || value.getDate() !== d) throw new Error('日期无效');
+  if (value.getTime() > now) throw new Error('不能补记未来的时间，请选择已过去的时段');
+  return value;
+}
+
+// Check recent submissions and insert atomically, including across tabs.
+// Cooldown uses save time, never the historical occurrence time.
+export function recordOnce(database, event, now = Date.now()) {
   return new Promise((resolve, reject) => {
     const tx = database.transaction(['tags', 'events'], 'readwrite');
     let result;
@@ -38,9 +49,25 @@ export function recordOnce(database, event) {
     tagRequest.onsuccess = () => {
       const tag = tagRequest.result;
       if (!tag || tag.archived) { result = { status: 'unavailable' }; return; }
+      const occurred = Date.parse(event.occurredAt);
+      if (!Number.isFinite(occurred) || occurred > now) { result = {status:'invalid', message:'记录时间无效或晚于现在'}; return; }
+      if (tag.valueType === 'number' && (typeof event.value !== 'number' || !Number.isFinite(event.value))) {
+        result = {status:'invalid', message:'请输入有效数字'}; return;
+      }
+      if ((event.valueType !== undefined && event.valueType !== (tag.valueType || 'event')) || (tag.valueType === 'number' && event.unit !== undefined && event.unit !== (tag.unit || ''))) {
+        result = {status:'invalid', message:'标签类型或单位已变化，请关闭后刷新页面再记录'}; return;
+      }
       const events = tx.objectStore('events');
-      events.add({ ...event, tagName: tag.name, group: tag.group, cycleDays: null });
-      result = { status: 'saved' };
+      const request = events.index('tagId').getAll(tag.id);
+      request.onsuccess = () => {
+        const latest = request.result.reduce((max,e) => Math.max(max, Number.isFinite(e.recordedAt) ? e.recordedAt : 0), 0);
+        if (latest && now < latest + COOLDOWN_MS) { result = {status:'cooldown', until:latest + COOLDOWN_MS}; return; }
+        const saved = {...event, tagName:tag.name, group:tag.group, cycleDays:null, recordedAt:now,
+          valueType:tag.valueType === 'number' ? 'number' : 'event', unit:tag.valueType === 'number' ? (tag.unit || '') : ''};
+        if (saved.valueType !== 'number') delete saved.value;
+        events.add(saved);
+        result = {status:'saved', event:saved, until:now + COOLDOWN_MS};
+      };
     };
   });
 }
@@ -59,10 +86,12 @@ export function validateBackup(data) {
   const ids=new Set(),names=new Set(),eventIds=new Set();
   for(const tag of data.tags){
     if(!tag || typeof tag.id!=='string'||!tag.id||typeof tag.name!=='string'||!normalizeName(tag.name)||!['conditions','results'].includes(tag.group)||ids.has(tag.id))throw new Error('备份标签数据无效');
+    if(tag.valueType !== undefined && !['event','number'].includes(tag.valueType) || tag.unit !== undefined && typeof tag.unit !== 'string')throw new Error('备份标签数值类型无效');
     const key=JSON.stringify([tag.group,normalizeName(tag.name)]);if(names.has(key))throw new Error('备份中存在重复标签名称');names.add(key);ids.add(tag.id);
   }
   for(const event of data.events){
     if(!event||typeof event.id!=='string'||!event.id||eventIds.has(event.id)||!ids.has(event.tagId)||typeof event.occurredAt!=='string'||!Number.isFinite(Date.parse(event.occurredAt)))throw new Error('备份记录数据无效');
+    if(event.valueType === 'number' && (typeof event.value !== 'number'||!Number.isFinite(event.value)) || event.value !== undefined && (typeof event.value !== 'number'||!Number.isFinite(event.value)))throw new Error('备份数值记录无效');
     eventIds.add(event.id);
   }
   return data;
