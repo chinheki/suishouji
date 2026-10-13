@@ -1,7 +1,7 @@
-import { periodStart, shiftPeriod } from './scatter.js?v=35';
-import { renderScatter } from './scatter-ui.js?v=35';
-import { openDatabase, recordOnce, backfillTime, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=35';
-import { renderNumericCharts } from './numeric-ui.js?v=35';
+import { periodStart, shiftPeriod } from './scatter.js?v=36';
+import { renderScatter } from './scatter-ui.js?v=36';
+import { openDatabase, recordOnce, backfillTime, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=36';
+import { renderNumericCharts } from './numeric-ui.js?v=36';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -64,12 +64,13 @@ async function renderTags() {
   const lastUsed=new Map();
   for(const event of events){const time=Date.parse(event.occurredAt);if(time>(lastUsed.get(event.tagId)||0))lastUsed.set(event.tagId,time);}
   for(const e of events)if(Number.isFinite(e.recordedAt)&&e.recordedAt+3000>Date.now())cooldowns.set(e.tagId,Math.max(cooldowns.get(e.tagId)||0,e.recordedAt+3000));
+  const activityTime=tag=>Math.max(lastUsed.get(tag.id)||0,Date.parse(tag.createdAt)||0);
   const query=searchKey($('home-search').value);
   for (const group of groups) {
     const container = $(group);
     container.replaceChildren();
     const matching=tags.filter(tag=>tag.group===group&&!tag.archived&&(!homeIcon||(homeIcon==='none'?!iconNames[tag.icon]:tag.icon===homeIcon))&&matchesHomeSearch(tag.name,query))
-      .sort((a,b)=>(lastUsed.get(b.id)||0)-(lastUsed.get(a.id)||0)||(Date.parse(b.createdAt)||0)-(Date.parse(a.createdAt)||0)||(b.order||0)-(a.order||0)||a.id.localeCompare(b.id));
+      .sort((a,b)=>activityTime(b)-activityTime(a)||(Date.parse(b.createdAt)||0)-(Date.parse(a.createdAt)||0)||(b.order||0)-(a.order||0)||a.id.localeCompare(b.id));
     const limit=group==='conditions'?10:5;
     const visible=query||homeExpanded[group]?matching:matching.slice(0,limit);
     visible.forEach((tag) => {
@@ -108,7 +109,12 @@ function openTagDialog(group, tag = null) {
   $('tag-name').value = tag?.name || ''; $('form-error').textContent = '';
   $('tag-name').placeholder = group === 'conditions' ? '例如：喝了茶' : '例如：心情很好';
   $('add-submit').disabled = true;
-  dialog.showModal(); $('tag-name').focus(); void validateTagForm();
+  // Set the initial focus before showModal so editing never focuses an input.
+  $('close-dialog').autofocus = Boolean(tag);
+  $('tag-name').autofocus = !tag;
+  dialog.showModal();
+  if (!tag) $('tag-name').focus();
+  void validateTagForm();
 }
 
 async function requestPersistence() {
@@ -264,7 +270,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=35');
+    const { seedDemo } = await import('./demo.js?v=36');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -533,7 +539,7 @@ $('backup-share').addEventListener('click',async()=>{
   catch(error){if(error.name!=='AbortError')$('backup-status').textContent='分享未完成，请使用“保存备份文件”。';}
 });
 
-const APP_VERSION='35';
+const APP_VERSION='36';
 let availableVersion=null;
 $('check-update').addEventListener('click',async()=>{
   const button=$('check-update');button.disabled=true;$('apply-update').hidden=true;
