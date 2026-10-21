@@ -199,3 +199,27 @@ dialog .submit:disabled { background: #e8dfd1; color: #827465; }
 #home-icons { gap: 6px; padding-bottom: 10px; margin-bottom: 6px; }
 #home-icons .icon-choice { min-height: 44px; padding: 4px 2px; gap: 3px; font-size: 10px; }
 #home-icons .tag-icon { width: 18px; height: 18px; }
+
+/* Home search floats above the navigation, aligned with the content column. */
+#page-home .floating-field:has(#home-search) {
+  position: fixed;
+  z-index: 2;
+  left: 50%;
+  bottom: calc(var(--navigation-height, 76px) + 10px);
+  transform: translateX(-50%);
+  width: calc(100% - 44px);
+  max-width: 744px;
+  margin: 0;
+}
+#home-search {
+  background: rgb(243 237 227 / 88%);
+  border: 1px solid rgb(222 205 182 / 70%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+#home-search:focus { background: rgb(245 230 203 / 94%); }
+#page-home .floating-field:has(#home-search) .floating-caption {
+  color: #76695d;
+}
+.app:has(#page-home:not([hidden])) { padding-bottom: 110px; }
+#page-home .floating-field:has(#home-search) .floating-caption { z-index: 1; }
