@@ -1,8 +1,8 @@
-import { initSheets, initFloatingFields, prepareSheet, requestSheetClose, showSheetField } from './sheet-ui.js?v=39';
-import { periodStart, shiftPeriod } from './scatter.js?v=39';
-import { renderScatter } from './scatter-ui.js?v=39';
-import { openDatabase, recordOnce, backfillTime, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=39';
-import { renderNumericCharts } from './numeric-ui.js?v=39';
+import { initSheets, initFloatingFields, prepareSheet, requestSheetClose, showSheetField } from './sheet-ui.js?v=40';
+import { periodStart, shiftPeriod } from './scatter.js?v=40';
+import { renderScatter } from './scatter-ui.js?v=40';
+import { openDatabase, recordOnce, backfillTime, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=40';
+import { renderNumericCharts } from './numeric-ui.js?v=40';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -278,7 +278,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=39');
+    const { seedDemo } = await import('./demo.js?v=40');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -547,7 +547,7 @@ $('backup-share').addEventListener('click',async()=>{
   catch(error){if(error.name!=='AbortError')$('backup-status').textContent='分享未完成，请使用“保存备份文件”。';}
 });
 
-const APP_VERSION='39';
+const APP_VERSION='40';
 let availableVersion=null;
 $('check-update').addEventListener('click',async()=>{
   const button=$('check-update');button.disabled=true;$('apply-update').hidden=true;
