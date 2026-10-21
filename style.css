@@ -182,3 +182,15 @@ dialog .submit:disabled { background: #e8dfd1; color: #827465; }
   .tag { padding: 14px 18px; }
   .tabbar { margin-bottom: 0; }
 }
+
+/* Compact tags keep more choices visible on mobile. */
+.tag, #page-stats .tag {
+  min-height: 38px;
+  padding: 9px 13px;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.tag.add, .results .tag.add, .tag.home-expand { padding: 9px 13px; font-size: 14px; }
+#page-stats .tag { min-height: 36px; padding: 8px 12px; font-size: 13px; }
+.tags { gap: 9px 8px; }
+.tag > .tag-icon { width: 20px; height: 20px; }
