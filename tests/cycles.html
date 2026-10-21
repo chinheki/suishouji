@@ -32,8 +32,8 @@ try{
  const bad=await exportBackup(db);bad.events[0].value='bad';let rejected=false;try{await importBackup(db,bad)}catch{rejected=true}assert(rejected,'无效数值备份拒绝');
  await write('tags',s=>s.put({id:'n',name:'体重改名',group:'results',archived:true}));assert((await recordOnce(db,event('n'),now+9000)).status==='unavailable','归档标签禁止写入');
  assert((await recordOnce(db,event('missing'),now)).status==='unavailable','不存在标签禁止写入');
- for(const time of ['10:00','18:00','23:00']){const d=backfillTime('2026-10-01',time,now);assert(d.getHours()===Number(time.slice(0,2))&&d.getMinutes()===0,'本地补记固定时段 '+time);}
- for(const [date,time] of [['2026-02-30','10:00'],['2026-10-01','12:00'],['2099-01-01','10:00']]){let failed=false;try{backfillTime(date,time,now)}catch{failed=true}assert(failed,'拒绝无效补记 '+date+' '+time);}
+ for(const time of ['00:00','10:00','18:00','23:55']){const d=backfillTime('2026-10-01',time,now);assert(d.getHours()===Number(time.slice(0,2))&&d.getMinutes()===Number(time.slice(3)),'本地补记 5 分钟刻度 '+time);}
+ for(const [date,time] of [['2026-02-30','10:00'],['2026-10-01','12:03'],['2099-01-01','10:00']]){let failed=false;try{backfillTime(date,time,now)}catch{failed=true}assert(failed,'拒绝无效补记 '+date+' '+time);}
  const legacy={id:'legacy',tagId:'race',tagName:'历史',occurredAt:'2020-01-01T00:00:00Z',cycleDays:7};await write('events',s=>s.add(legacy));
  assert(JSON.stringify((await exportBackup(db)).events.find(e=>e.id==='legacy'))===JSON.stringify(legacy),'旧事件原样保留');
  document.getElementById('results').textContent=lines.join('\n');

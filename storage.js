@@ -28,7 +28,7 @@ export function openDatabase(name = 'suishouji', initialTags = [], onBlocked = (
 
 export const COOLDOWN_MS = 3000;
 export function backfillTime(date, time, now = Date.now()) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !['10:00','18:00','23:00'].includes(time)) throw new Error('请选择日期和固定时段');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5][05]$/.test(time)) throw new Error('请选择日期和有效时间（5 分钟间隔）');
   const value = new Date(date + 'T' + time + ':00');
   const [y,m,d] = date.split('-').map(Number);
   if (!Number.isFinite(value.getTime()) || value.getFullYear() !== y || value.getMonth() !== m-1 || value.getDate() !== d) throw new Error('日期无效');

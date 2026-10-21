@@ -1,7 +1,8 @@
-import { periodStart, shiftPeriod } from './scatter.js?v=36';
-import { renderScatter } from './scatter-ui.js?v=36';
-import { openDatabase, recordOnce, backfillTime, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=36';
-import { renderNumericCharts } from './numeric-ui.js?v=36';
+import { initSheets, initFloatingFields, prepareSheet, requestSheetClose, showSheetField } from './sheet-ui.js?v=37';
+import { periodStart, shiftPeriod } from './scatter.js?v=37';
+import { renderScatter } from './scatter-ui.js?v=37';
+import { openDatabase, recordOnce, backfillTime, normalizeName, exportBackup, validateBackup, importBackup } from './storage.js?v=37';
+import { renderNumericCharts } from './numeric-ui.js?v=37';
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const DB_NAME = demoMode ? 'suishouji-demo-v1' : 'suishouji';
 const groups = ['conditions', 'results'];
@@ -14,6 +15,8 @@ const initialTags = [
 let db, activeGroup, lastEvent, toastTimer;
 const $ = (id) => document.getElementById(id);
 const dialog = $('add-dialog');
+initSheets();
+initFloatingFields();
 
 function transaction(store, mode, operation) {
   return new Promise((resolve, reject) => {
@@ -112,6 +115,8 @@ function openTagDialog(group, tag = null) {
   // Set the initial focus before showModal so editing never focuses an input.
   $('close-dialog').autofocus = Boolean(tag);
   $('tag-name').autofocus = !tag;
+  dialog.querySelectorAll('input').forEach(input=>input.dispatchEvent(new Event('input')));
+  prepareSheet(dialog);
   dialog.showModal();
   if (!tag) $('tag-name').focus();
   void validateTagForm();
@@ -163,10 +168,10 @@ function openRecordDialog(tag, backfill) {
   $('record-time').value=now.getHours()>=23?'23:00':now.getHours()>=18?'18:00':'10:00';
   $('record-value-wrap').hidden=tag.valueType!=='number';$('record-value').disabled=tag.valueType!=='number';$('record-value').required=tag.valueType==='number';
   $('record-value').value='';$('record-unit').textContent=tag.unit||'';$('record-error').textContent='';
-  $('record-submit').disabled=false;$('record-dialog').showModal();
+  $('record-submit').disabled=false;prepareSheet($('record-dialog'));$('record-dialog').showModal();
   if(tag.valueType==='number')$('record-value').focus();else $('record-date').focus();
 }
-$('record-close').addEventListener('click',()=>{if(!recordSaving)$('record-dialog').close();});
+$('record-close').addEventListener('click',()=>{if(!recordSaving)requestSheetClose($('record-dialog'));});
 $('record-dialog').addEventListener('cancel',e=>{if(recordSaving)e.preventDefault();});
 $('record-form').addEventListener('submit',async e=>{
   e.preventDefault();if(recordSaving||!recordDraft)return;
@@ -222,7 +227,7 @@ $('undo').addEventListener('click', async () => {
   } catch { showError('撤销没有成功，请重试。'); }
   finally { $('undo').disabled = false; }
 });
-$('close-dialog').addEventListener('click', () => dialog.close());
+$('close-dialog').addEventListener('click', () => {if(!formSaving)requestSheetClose(dialog);});
 let formRevision = 0;
 let formSaving = false;
 async function validateTagForm() {
@@ -231,6 +236,9 @@ async function validateTagForm() {
   const name = normalizeName($('tag-name').value);
   $('form-error').textContent = '';
   if (!name || formSaving) return false;
+  const length = [...name].reduce((sum,char)=>sum+(char.codePointAt(0)>255?2:1),0);
+  if(length>20 && name!==editingTag?.name){$('form-error').textContent=`标签长度 ${length}/20，中文计 2，英文与数字计 1。`;$('tag-name').setAttribute('aria-invalid','true');showSheetField($('tag-name'));return false;}
+  $('tag-name').removeAttribute('aria-invalid');
   try {
     const existing = await transaction('tags', 'readonly', (store) => store.index('group_name').get([activeGroup, name]));
     if (revision !== formRevision) return false;
@@ -270,7 +278,7 @@ $('add-form').addEventListener('submit', async (event) => {
 try {
   db = await openDatabase(DB_NAME, demoMode ? [] : initialTags, () => showError('请关闭其他打开的随手记页面，再刷新重试。'));
   if (demoMode) {
-    const { seedDemo } = await import('./demo.js?v=36');
+    const { seedDemo } = await import('./demo.js?v=37');
     await seedDemo(db);
     $('demo-banner').hidden = false;
     $('storage-status').textContent = '模拟数据 · 独立保存在本机';
@@ -539,7 +547,7 @@ $('backup-share').addEventListener('click',async()=>{
   catch(error){if(error.name!=='AbortError')$('backup-status').textContent='分享未完成，请使用“保存备份文件”。';}
 });
 
-const APP_VERSION='36';
+const APP_VERSION='37';
 let availableVersion=null;
 $('check-update').addEventListener('click',async()=>{
   const button=$('check-update');button.disabled=true;$('apply-update').hidden=true;
@@ -559,6 +567,7 @@ $('check-update').addEventListener('click',async()=>{
   finally{button.disabled=false;}
 });
 $('apply-update').addEventListener('click',async()=>{
+  if(document.querySelector('dialog[open]')){ $('update-status').textContent='请先保存或退出正在填写的表单，再更新。'; return; }
   $('apply-update').disabled=true;$('update-status').textContent='正在更新，即将重新打开…';
   try{
     const registration=await navigator.serviceWorker?.getRegistration();

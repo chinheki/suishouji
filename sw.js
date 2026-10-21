@@ -1,5 +1,5 @@
-const CACHE = 'suishouji-shell-v36';
-const ASSETS = ['./icons/tortoise.svg','./icons/cat.svg','./icons/fish.svg','./icons/turtle.svg','./icons/face.svg','./', './index.html', './style.css?v=36', './app.js?v=36', './numeric-ui.js?v=36', './scatter-ui.js?v=36', './scatter.js?v=36', './demo.js?v=36', './demo-data.js', './storage.js?v=36', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
+const CACHE = 'suishouji-shell-v37';
+const ASSETS = ['./sheet-ui.js?v=37','./icons/tortoise.svg','./icons/cat.svg','./icons/fish.svg','./icons/turtle.svg','./icons/face.svg','./', './index.html', './style.css?v=37', './app.js?v=37', './numeric-ui.js?v=37', './scatter-ui.js?v=37', './scatter.js?v=37', './demo.js?v=37', './demo-data.js', './storage.js?v=37', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
